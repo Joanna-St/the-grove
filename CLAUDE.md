@@ -44,7 +44,7 @@ the-grove/
 
 ## Phases
 - [x] Phase 0 — Design (complete)
-- [ ] Phase 1 — Foundation
+- [x] Phase 1 — Foundation
 - [ ] Phase 1.5 — Minimal Visual Layer
 - [ ] Phase 2 — Heartstone (playable demo)
 - [ ] Phase 3 — Full Progression
@@ -54,14 +54,14 @@ the-grove/
 Full phase descriptions in design doc.
 
 ## Current Phase
-**Phase 1 — Foundation**
-- [ ] Project structure + Pygame window
-- [ ] Config file
-- [ ] Save/load system
-- [ ] Hybrid time system (real elapsed + in-game day/night cycle + dev speed mode)
-- [ ] Resource tracking (rectangles and text only — no art yet)
+**Phase 1.5 — Minimal Visual Layer**
+- [x] Coded placeholder scene: sky gradient, tree silhouettes, Heartstone clearing
+- [x] Silvanus statue placeholder (geometric, stone + moss + glow)
+- [x] Druid figure placeholder (hooded silhouette)
+- [x] Ambient motes at dusk/night
+- [x] All four day periods visually distinct
 
-Deliverable: game launches, time passes, resources tick, save and reload works.
+Deliverable: it looks vaguely like a grove.
 
 ## Session Log
 *Update before closing each session: what was completed, what's next, any decisions 
@@ -83,3 +83,12 @@ made that future sessions need to know about.*
 - `assets/sprites/` and `assets/sounds/` directories created
 - Deliverable confirmed: game launches, time passes, resources tick, save/reload works
 - **Next:** Phase 1.5 — Minimal Visual Layer (placeholder sprites, Heartstone background, basic UI)
+
+### Session 3 — [05.06.2026]
+**Phase 1.5 complete.**
+- `game/renderer.py` — coded placeholder scene: sky gradient (period-tinted), tree silhouettes, Heartstone clearing with moss spots, Silvanus statue (stone geometry + glamour glow), druid hooded figure, ambient firefly motes at dusk/night
+- No image files — all geometry, designed to be swapped for real sprites in Phase 5
+- `main.py` updated to call `draw_scene()` instead of flat fill; HUD floats over scene
+- All four day periods (dawn/day/dusk/night) visually distinct
+- Deliverable confirmed: it looks vaguely like a grove
+- **Next:** Phase 2 — The Heartstone (stirge and blink dog arrive, interaction, bond tracking, glamour system, player name entry)

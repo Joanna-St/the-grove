@@ -10,6 +10,7 @@ from game.areas import Areas
 from game.creatures import Creatures
 from game.events import Events
 from game import save_load
+from game.renderer import draw_scene
 
 CONFIG_PATH = "config.json"
 
@@ -22,18 +23,8 @@ def load_config():
 # ------------------------------------------------------------------
 # Colours
 
-BG_DARK  = (18, 22, 18)
-BG_PANEL = (28, 36, 28)
-WHITE    = (230, 230, 230)
-DIM      = (120, 120, 120)
-GOLD     = (200, 170,  80)
-
-PERIOD_TINTS = {
-    "dawn":  (40, 30, 20),
-    "day":   (20, 35, 20),
-    "dusk":  (40, 20, 10),
-    "night": (10, 10, 30),
-}
+WHITE = (230, 230, 230)
+DIM   = (120, 120, 120)
 
 
 # ------------------------------------------------------------------
@@ -140,28 +131,27 @@ def main():
             last_autosave = now
 
         # ---- Render ----
-        tint = PERIOD_TINTS[time_sys.period]
-        bg = tuple(max(0, BG_DARK[i] + tint[i]) for i in range(3))
-        screen.fill(bg)
+        draw_scene(screen, time_sys.period, time_sys.time_of_day,
+                   win_cfg["width"], win_cfg["height"])
 
         # Title
-        title = font_lg.render("The Grove", True, (160, 210, 140))
+        title = font_lg.render("The Grove", True, (200, 230, 180))
         screen.blit(title, (20, 20))
 
         # Resources panel
-        resources.render(screen, font, 20, 60)
+        resources.render(screen, font, 20, 50)
 
         # Time HUD
-        render_time_hud(screen, font_sm, time_sys, 20, 210)
+        render_time_hud(screen, font_sm, time_sys, 20, 200)
 
         # Dev speed badge
         if time_sys.dev_speed:
-            render_dev_badge(screen, font_sm, 20, 240)
+            render_dev_badge(screen, font_sm, 20, 230)
 
         # Save flash
         if save_flash_ttl > 0:
             alpha = int(255 * min(1.0, save_flash_ttl))
-            render_save_flash(screen, font_sm, 20, 260, alpha)
+            render_save_flash(screen, font_sm, 20, 250, alpha)
 
         # Keybind hints (bottom-left)
         render_keybinds(screen, font_sm, 20, win_cfg["height"] - 60)
