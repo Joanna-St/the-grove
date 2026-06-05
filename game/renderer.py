@@ -1,6 +1,5 @@
 """
-Phase 1.5 — coded placeholder visuals.
-All shapes are geometric stand-ins; no image files.
+Coded placeholder visuals — no image files.
 Replace individual draw_* functions with sprite blits when art is ready.
 """
 
@@ -60,7 +59,7 @@ def draw_background(surface, period, screen_w, screen_h):
 
 
 # ------------------------------------------------------------------
-# Trees (silhouette triangles along the edges)
+# Trees
 
 def draw_trees(surface, period, screen_w, screen_h):
     col = TREE_COLOURS[period]
@@ -88,13 +87,12 @@ def draw_trees(surface, period, screen_w, screen_h):
         right = (bx + dx,      by + height)
         pygame.draw.polygon(surface, col, [tip, left, right])
 
-    # Underbrush strip at horizon
     brush_col = _lerp_colour(col, GROUND_COLOURS[period], 0.3)
     pygame.draw.rect(surface, brush_col, (0, horizon - 12, screen_w, 20))
 
 
 # ------------------------------------------------------------------
-# Heartstone clearing — oval of lighter ground + moss details
+# Heartstone clearing
 
 def draw_clearing(surface, period, screen_w, screen_h):
     cx = screen_w // 2
@@ -104,7 +102,6 @@ def draw_clearing(surface, period, screen_w, screen_h):
     clearing_col = _lerp_colour(base, (60, 90, 40), 0.25)
     pygame.draw.ellipse(surface, clearing_col, (cx - 200, cy - 50, 400, 100))
 
-    # Scattered moss spots
     moss_col = _lerp_colour(clearing_col, (50, 110, 40), 0.4)
     spots = [(-90, 10, 22, 8), (60, 20, 18, 6), (-30, -18, 14, 5),
              (110, -5, 20, 7), (-140, -10, 16, 6)]
@@ -113,84 +110,260 @@ def draw_clearing(surface, period, screen_w, screen_h):
 
 
 # ------------------------------------------------------------------
-# Silvanus statue — stylised stone figure
+# Silvanus statue
 
 def draw_statue(surface, period, screen_w, screen_h):
     cx = screen_w // 2
     base_y = int(screen_h * 0.68)
 
-    stone = (90, 85, 80)
+    stone  = (90, 85, 80)
     shadow = (55, 52, 48)
     moss   = (60, 90, 55)
 
-    # Base plinth
-    pygame.draw.rect(surface, shadow, (cx - 26, base_y - 4, 52, 12))
-    pygame.draw.rect(surface, stone,  (cx - 22, base_y - 8, 44, 12))
-
-    # Column / body
+    pygame.draw.rect(surface, shadow, (cx - 26, base_y - 4,  52, 12))
+    pygame.draw.rect(surface, stone,  (cx - 22, base_y - 8,  44, 12))
     pygame.draw.rect(surface, shadow, (cx - 14, base_y - 68, 28, 62))
     pygame.draw.rect(surface, stone,  (cx - 12, base_y - 70, 24, 62))
-
-    # Arms outstretched
-    pygame.draw.rect(surface, stone, (cx - 36, base_y - 58, 24, 8))
-    pygame.draw.rect(surface, stone, (cx + 12, base_y - 58, 24, 8))
-
-    # Head / circle
+    pygame.draw.rect(surface, stone,  (cx - 36, base_y - 58, 24,  8))
+    pygame.draw.rect(surface, stone,  (cx + 12, base_y - 58, 24,  8))
     pygame.draw.circle(surface, shadow, (cx + 1, base_y - 80), 13)
     pygame.draw.circle(surface, stone,  (cx,     base_y - 80), 12)
-
-    # Moss accent near base
     pygame.draw.ellipse(surface, moss, (cx - 14, base_y - 14, 28, 8))
 
-    # Faint glow if glamour is high (placeholder — always on for now)
     glow = pygame.Surface((80, 80), pygame.SRCALPHA)
     pygame.draw.circle(glow, (140, 110, 200, 28), (40, 40), 38)
     surface.blit(glow, (cx - 40, base_y - 110))
 
 
+def statue_rect(screen_w, screen_h):
+    cx = screen_w // 2
+    base_y = int(screen_h * 0.68)
+    return pygame.Rect(cx - 38, base_y - 92, 76, 92)
+
+
 # ------------------------------------------------------------------
-# Druid figure — hooded silhouette
+# Druid figure
 
 def draw_druid(surface, period, screen_w, screen_h):
     dx = int(screen_w * 0.34)
     dy = int(screen_h * 0.60)
 
-    robe  = (45, 55, 42)
-    hood  = (35, 44, 32)
-    skin  = (170, 135, 105)
-    leaf  = (60, 100, 50)
+    robe = (45, 55, 42)
+    hood = (35, 44, 32)
+    skin = (170, 135, 105)
+    leaf = (60, 100, 50)
 
-    # Robe (trapezoid)
     robe_pts = [(dx - 14, dy), (dx + 14, dy),
                 (dx + 20, dy + 70), (dx - 20, dy + 70)]
     pygame.draw.polygon(surface, robe, robe_pts)
-
-    # Arms
     pygame.draw.line(surface, robe, (dx - 10, dy + 10), (dx - 26, dy + 38), 7)
     pygame.draw.line(surface, robe, (dx + 10, dy + 10), (dx + 26, dy + 38), 7)
-
-    # Hands
     pygame.draw.circle(surface, skin, (dx - 26, dy + 40), 5)
     pygame.draw.circle(surface, skin, (dx + 26, dy + 40), 5)
-
-    # Neck + face
     pygame.draw.rect(surface, skin, (dx - 5, dy - 10, 10, 12))
     pygame.draw.circle(surface, skin, (dx, dy - 16), 11)
-
-    # Hood
     hood_pts = [(dx - 18, dy + 4), (dx + 18, dy + 4),
                 (dx + 10, dy - 8), (dx, dy - 30), (dx - 10, dy - 8)]
     pygame.draw.polygon(surface, hood, hood_pts)
-
-    # Leaf detail on robe
     pygame.draw.ellipse(surface, leaf, (dx - 5, dy + 20, 10, 18))
-    pygame.draw.ellipse(surface, leaf, (dx + 2, dy + 28, 8, 14))
+    pygame.draw.ellipse(surface, leaf, (dx + 2, dy + 28,  8, 14))
 
 
 # ------------------------------------------------------------------
-# Ambient: fireflies / motes (night and dusk only)
+# Stirge — small dark creature with proboscis and wings
+
+def stirge_pos(screen_w, screen_h):
+    return (int(screen_w * 0.28), int(screen_h * 0.715))
+
+
+def stirge_rect(screen_w, screen_h):
+    x, y = stirge_pos(screen_w, screen_h)
+    return pygame.Rect(x - 18, y - 14, 36, 28)
+
+
+def draw_stirge(surface, screen_w, screen_h, period, is_present, can_interact):
+    if not is_present:
+        return
+    x, y = stirge_pos(screen_w, screen_h)
+
+    body   = (80, 40, 40)
+    wing   = (55, 30, 30)
+    eye    = (200, 60, 60)
+
+    # Wings (two thin ellipses angled back)
+    pygame.draw.ellipse(surface, wing, (x - 20, y - 10, 16, 6))
+    pygame.draw.ellipse(surface, wing, (x +  5, y - 10, 16, 6))
+
+    # Body
+    pygame.draw.ellipse(surface, body, (x - 10, y - 8, 20, 14))
+
+    # Proboscis
+    pygame.draw.line(surface, body, (x - 10, y - 2), (x - 22, y + 4), 2)
+
+    # Eye
+    pygame.draw.circle(surface, eye, (x + 4, y - 3), 3)
+
+    # Interaction highlight ring
+    if can_interact:
+        pygame.draw.circle(surface, (200, 180, 100), (x, y), 18, 1)
+
+
+# ------------------------------------------------------------------
+# Blink Dog — small canine with a magical shimmer
+
+_blink_offset = [0, 0]   # subtle position jitter updated each frame
+
+
+def blink_dog_pos(screen_w, screen_h):
+    return (int(screen_w * 0.60), int(screen_h * 0.715))
+
+
+def blink_dog_rect(screen_w, screen_h):
+    x, y = blink_dog_pos(screen_w, screen_h)
+    return pygame.Rect(x - 22, y - 16, 44, 28)
+
+
+def draw_blink_dog(surface, screen_w, screen_h, period, is_present, can_interact, time_of_day):
+    if not is_present:
+        return
+    bx, by = blink_dog_pos(screen_w, screen_h)
+
+    # Subtle shimmer flicker — offset shifts slightly over time
+    flicker = math.sin(time_of_day * math.pi * 40) * 1.5
+    x = int(bx + flicker)
+    y = by
+
+    fur  = (140, 150, 180)
+    dark = (90, 100, 130)
+    nose = (60, 60, 80)
+    glow = (160, 180, 220)
+
+    # Body
+    pygame.draw.ellipse(surface, fur, (x - 18, y - 10, 36, 16))
+
+    # Head
+    pygame.draw.circle(surface, fur, (x + 18, y - 8), 10)
+
+    # Ears
+    pygame.draw.polygon(surface, dark, [(x + 12, y - 16), (x + 16, y - 22), (x + 20, y - 16)])
+    pygame.draw.polygon(surface, dark, [(x + 22, y - 14), (x + 26, y - 20), (x + 28, y - 14)])
+
+    # Legs
+    for lx in (x - 12, x - 4, x + 4, x + 12):
+        pygame.draw.line(surface, dark, (lx, y + 5), (lx, y + 14), 3)
+
+    # Tail
+    pygame.draw.line(surface, fur, (x - 18, y - 4), (x - 26, y - 12), 3)
+
+    # Nose
+    pygame.draw.circle(surface, nose, (x + 27, y - 8), 3)
+
+    # Eye
+    pygame.draw.circle(surface, (220, 230, 255), (x + 22, y - 11), 2)
+
+    # Faint glow aura
+    aura = pygame.Surface((60, 40), pygame.SRCALPHA)
+    pygame.draw.ellipse(aura, (160, 180, 220, 25), (0, 0, 60, 40))
+    surface.blit(aura, (x - 30, y - 20))
+
+    # Interaction highlight ring
+    if can_interact:
+        pygame.draw.circle(surface, (200, 180, 100), (x, y), 22, 1)
+
+
+# ------------------------------------------------------------------
+# Dialogue bubble
+
+def draw_dialogue(surface, font, text, anchor_x, anchor_y):
+    if not text:
+        return
+    words = text.split()
+    lines, line = [], []
+    for w in words:
+        line.append(w)
+        if font.size(" ".join(line))[0] > 260:
+            lines.append(" ".join(line[:-1]))
+            line = [w]
+    if line:
+        lines.append(" ".join(line))
+
+    pad = 8
+    lh  = font.get_linesize()
+    bw  = max(font.size(l)[0] for l in lines) + pad * 2
+    bh  = lh * len(lines) + pad * 2
+
+    bx = anchor_x - bw // 2
+    by = anchor_y - bh - 10
+    bx = max(4, min(bx, surface.get_width() - bw - 4))
+
+    bg = pygame.Surface((bw, bh), pygame.SRCALPHA)
+    bg.fill((15, 25, 15, 200))
+    surface.blit(bg, (bx, by))
+    pygame.draw.rect(surface, (80, 110, 70), (bx, by, bw, bh), 1)
+
+    for i, ln in enumerate(lines):
+        txt = font.render(ln, True, (210, 225, 200))
+        surface.blit(txt, (bx + pad, by + pad + i * lh))
+
+    # Tail
+    pygame.draw.polygon(surface, (15, 25, 15),
+                        [(anchor_x - 4, by + bh),
+                         (anchor_x + 4, by + bh),
+                         (anchor_x,     by + bh + 8)])
+
+
+# ------------------------------------------------------------------
+# Action panel (bottom-right)
+
+def draw_action_panel(surface, font, screen_w, screen_h, actions):
+    """
+    actions: list of (label, key_hint, cooldown_fraction, available)
+    cooldown_fraction: 0.0 = ready, 1.0 = just used
+    """
+    pad    = 8
+    btn_w  = 160
+    btn_h  = 28
+    gap    = 6
+    total_h = len(actions) * (btn_h + gap) - gap + pad * 2
+    total_w = btn_w + pad * 2
+
+    panel_x = screen_w - total_w - 12
+    panel_y = screen_h - total_h - 12
+
+    bg = pygame.Surface((total_w, total_h), pygame.SRCALPHA)
+    bg.fill((15, 20, 15, 180))
+    surface.blit(bg, (panel_x, panel_y))
+
+    for i, (label, key_hint, cd_frac, available) in enumerate(actions):
+        bx = panel_x + pad
+        by = panel_y + pad + i * (btn_h + gap)
+
+        col = (40, 60, 35) if available else (30, 35, 30)
+        pygame.draw.rect(surface, col, (bx, by, btn_w, btn_h), border_radius=3)
+        pygame.draw.rect(surface, (60, 80, 55), (bx, by, btn_w, btn_h), 1, border_radius=3)
+
+        # Cooldown overlay
+        if cd_frac > 0:
+            cd_w = int(btn_w * cd_frac)
+            cd_surf = pygame.Surface((cd_w, btn_h), pygame.SRCALPHA)
+            cd_surf.fill((0, 0, 0, 100))
+            surface.blit(cd_surf, (bx, by))
+
+        text_col = (200, 220, 180) if available else (100, 110, 95)
+        hint_col = (130, 150, 110) if available else (70, 80, 65)
+
+        lbl = font.render(label, True, text_col)
+        hint = font.render(key_hint, True, hint_col)
+        surface.blit(lbl,  (bx + 8,           by + (btn_h - lbl.get_height()) // 2))
+        surface.blit(hint, (bx + btn_w - hint.get_width() - 6,
+                            by + (btn_h - hint.get_height()) // 2))
+
+
+# ------------------------------------------------------------------
+# Ambient motes
 
 _motes = [(i * 137 % 700 + 162, i * 97 % 300 + 200) for i in range(18)]
+
 
 def draw_motes(surface, period, time_of_day, screen_w, screen_h):
     if period not in ("night", "dusk"):
@@ -202,18 +375,31 @@ def draw_motes(surface, period, time_of_day, screen_w, screen_h):
         a = int(alpha * flicker)
         r = int(2 + flicker * 2)
         glow = pygame.Surface((r * 6, r * 6), pygame.SRCALPHA)
-        pygame.draw.circle(glow, (200, 230, 160, a), (r * 3, r * 3), r * 3)
+        pygame.draw.circle(glow, (200, 230, 160, a),          (r * 3, r * 3), r * 3)
         pygame.draw.circle(glow, (240, 255, 200, min(255, a + 60)), (r * 3, r * 3), r)
         surface.blit(glow, (mx - r * 3, my - r * 3))
 
 
 # ------------------------------------------------------------------
-# Master scene draw (call once per frame before HUD)
+# Master scene draw
 
-def draw_scene(surface, period, time_of_day, screen_w, screen_h):
+def draw_scene(surface, period, time_of_day, screen_w, screen_h,
+               creatures=None):
     draw_background(surface, period, screen_w, screen_h)
     draw_trees(surface, period, screen_w, screen_h)
     draw_clearing(surface, period, screen_w, screen_h)
     draw_statue(surface, period, screen_w, screen_h)
     draw_druid(surface, period, screen_w, screen_h)
+
+    if creatures:
+        stirge    = creatures.get("stirge")
+        blink_dog = creatures.get("blink_dog")
+        if stirge:
+            draw_stirge(surface, screen_w, screen_h, period,
+                        stirge.is_present, stirge.can_interact)
+        if blink_dog:
+            draw_blink_dog(surface, screen_w, screen_h, period,
+                           blink_dog.is_present, blink_dog.can_interact,
+                           time_of_day)
+
     draw_motes(surface, period, time_of_day, screen_w, screen_h)

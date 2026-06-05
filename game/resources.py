@@ -66,7 +66,7 @@ class ResourceTracker:
         import pygame
         bar_w, bar_h = 220, 22
         padding = 10
-        panel_w = bar_w + 120
+        panel_w = bar_w + 155
         panel_h = len(self.RESOURCES) * (bar_h + padding) + padding
 
         bg = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)

@@ -27,6 +27,7 @@ the-grove/
 ├── main.py
 ├── game/
 │   ├── renderer.py
+│   ├── dialogue.py
 │   ├── time_system.py
 │   ├── resources.py
 │   ├── creatures.py
@@ -48,7 +49,7 @@ the-grove/
 - [x] Phase 0 — Design (complete)
 - [x] Phase 1 — Foundation
 - [x] Phase 1.5 — Minimal Visual Layer
-- [ ] Phase 2 — Heartstone (playable demo)
+- [x] Phase 2 — Heartstone (playable demo)
 - [ ] Phase 3 — Full Progression
 - [ ] Phase 4 — Events & Visitors
 - [ ] Phase 5 — Art & Polish
@@ -56,13 +57,14 @@ the-grove/
 Full phase descriptions in design doc.
 
 ## Current Phase
-**Phase 2 — The Heartstone (playable demo)**
-- [ ] Stirge and blink dog arrive with full interaction and bond tracking
-- [ ] Resource generation from creatures (rates from config)
-- [ ] Silvanus statue tending (glamour system live)
-- [ ] Player name entry at first launch
+**Phase 3 — Full Progression**
+- [ ] Remaining four areas unlock in order (Thicket, Canopy, Feywild Boundary, Oldwood)
+- [ ] Remaining six creatures arrive with personalities, bond milestones, and perks
+- [ ] Restoration mechanic fully working, passive generation scaling with glamour and grove size
 
-Deliverable: playable demo — you can tend the grove, feed the stirge, watch the blink dog cause chaos.
+**Carry-in from Phase 2:** glamour base drain agreed but not yet implemented — add at the start of Phase 3 (small passive drain ~0.002/s so glamour can drop and tending remains meaningful; net positive vs passive generation rate of 0.005/s).
+
+Deliverable: full progression arc playable from start to win condition.
 
 ## Session Log
 *Update before closing each session: what was completed, what's next, any decisions 
@@ -96,3 +98,17 @@ made that future sessions need to know about.*
 - **Window decision:** settled on 900×640. Fullscreen mode available via `"fullscreen": true` in config.json (uses NOFRAME + letterboxing, no resolution change). Runtime toggle attempted and abandoned — SDL2 window repositioning unreliable on Windows; parked in IDEAS.md.
 - Deliverable confirmed: it looks vaguely like a grove
 - **Next:** Phase 2 — The Heartstone (stirge and blink dog arrive, interaction, bond tracking, glamour system, player name entry)
+
+### Session 4 — [06.06.2026]
+**Phase 2 complete.**
+- `game/dialogue.py` — dialogue pools for stirge and blink dog (5 lines per bond level 0–3), milestone texts, forage and tend-statue flavour lines
+- `game/creatures.py` — full Creature class: arrival timing, passive resource contribution by bond level, click interaction, bond XP + level-up, dialogue TTL, interact cooldown, bond flash TTL
+- `game/save_load.py` — player name added to save format
+- `game/renderer.py` — stirge placeholder (dark oval, wings, proboscis, eye), blink dog placeholder (canine silhouette with shimmer flicker and glow aura), dialogue bubble renderer, action panel renderer; clickable rect helpers for all three interactables
+- `main.py` — name entry screen on first launch; click detection (stirge, blink dog, statue); F/T active actions with cooldown bars; bond XP flash (gold highlight on interact); player name top-right; bond status display `[*--]` style
+- `config.json` — arrival timings, bond XP config, action cooldown/yield values
+- `IDEAS.md` — added interaction-triggered resource drops and blink dog random object drops as future considerations
+- **Known gap:** glamour base drain agreed (0.002/s) but not implemented — carry into Phase 3 start
+- **Decisions:** creature contributions are passive/continuous (not interaction-triggered); bond XP visual = brief gold flash on bond line; no floating resource numbers for now (parked in Ideas); resource panel width fixed to contain numbers
+- Deliverable confirmed: name entry works, stirge and blink dog arrive on schedule, interactions build bond, stat tending works, save/load preserves all state
+- **Next:** Phase 3 — Full Progression (add glamour drain first, then area unlock mechanic, then remaining six creatures)

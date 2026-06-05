@@ -4,6 +4,21 @@ Things to consider for later phases. Not current phase scope.
 
 ---
 
+## Creatures & Resources
+
+- **Interaction-triggered resource drops** — rather than (or in addition to)
+  passive drip, clicking a creature could trigger an immediate resource drop
+  at that moment. Makes interactions feel purposeful beyond just dialogue and
+  bond XP. Revisit when Phase 3 has more creatures contributing simultaneously
+  and the passive model starts to feel invisible.
+
+- **Random object drops / event seeds** — blink dog in particular should
+  occasionally bring non-resource items (a boot, a coin, a button — noted in
+  design doc). These breadcrumbs could seed or unlock visitor events in Phase 4.
+  Track as a separate inventory or event-flag list rather than a resource.
+
+---
+
 ## Window & Display
 
 - **Windowed/fullscreen toggle at runtime** — F11 toggle didn't work reliably

@@ -34,7 +34,7 @@
   },
   "creatures": {
     "stirge": {
-      "forage_per_second":    [0.010, 0.018, 0.030, 0.050]
+      "forage_per_second": [0.010, 0.018, 0.030, 0.050]
     },
     "blink_dog": {
       "forage_per_second":    [0.005, 0.010, 0.015, 0.020],
@@ -59,6 +59,28 @@
     "displacer_beast": {
       "heartwood_per_second": [0.020, 0.040, 0.060, 0.100],
       "glamour_per_second":   [0.020, 0.040, 0.060, 0.100]
+    }
+  },
+  "arrival_game_seconds": {
+    "stirge":    120,
+    "blink_dog": 360
+  },
+  "bond": {
+    "xp_per_interact":            12,
+    "xp_thresholds":              [50, 150, 350],
+    "interact_cooldown_real_seconds": 20
+  },
+  "active_actions": {
+    "forage": {
+      "cooldown_real_seconds": 45,
+      "forage_yield":          8.0,
+      "heartwood_yield":       3.0,
+      "glamour_chance":        0.25,
+      "glamour_yield":         2.0
+    },
+    "tend_statue": {
+      "cooldown_real_seconds": 60,
+      "glamour_yield":         8.0
     }
   },
   "areas": {
