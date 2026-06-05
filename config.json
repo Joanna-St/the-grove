@@ -1,0 +1,91 @@
+{
+  "window": {
+    "width": 1024,
+    "height": 768,
+    "fps": 60,
+    "title": "The Grove"
+  },
+  "time": {
+    "day_length_real_seconds": 600,
+    "dev_speed_multiplier": 60,
+    "time_of_day_segments": {
+      "dawn": [0.0, 0.125],
+      "day":  [0.125, 0.708],
+      "dusk": [0.708, 0.875],
+      "night":[0.875, 1.0]
+    }
+  },
+  "resources": {
+    "starting": {
+      "forage":    10.0,
+      "heartwood":  5.0,
+      "glamour":    2.0
+    },
+    "passive_base_rate_per_second": {
+      "forage":    0.02,
+      "heartwood": 0.01,
+      "glamour":   0.005
+    }
+  },
+  "glamour_decay": {
+    "feywild_boundary_rate_per_second": 0.003,
+    "feywild_boundary_threshold": 30.0
+  },
+  "creatures": {
+    "stirge": {
+      "forage_per_second":    [0.010, 0.018, 0.030, 0.050]
+    },
+    "blink_dog": {
+      "forage_per_second":    [0.005, 0.010, 0.015, 0.020],
+      "heartwood_per_second": [0.005, 0.010, 0.015, 0.020],
+      "glamour_per_second":   [0.001, 0.002, 0.003, 0.005]
+    },
+    "owlbear": {
+      "heartwood_per_second": [0.050, 0.080, 0.120, 0.200]
+    },
+    "pseudodragon": {
+      "glamour_per_second":   [0.020, 0.040, 0.060, 0.100]
+    },
+    "flumph": {
+      "glamour_per_second":   [0.015, 0.030, 0.050, 0.080]
+    },
+    "moss_wisp": {
+      "forage_per_second":    [0.020, 0.040, 0.070, 0.100]
+    },
+    "pixie": {
+      "glamour_per_second":   [0.010, 0.025, 0.040, 0.070]
+    },
+    "displacer_beast": {
+      "heartwood_per_second": [0.020, 0.040, 0.060, 0.100],
+      "glamour_per_second":   [0.020, 0.040, 0.060, 0.100]
+    }
+  },
+  "areas": {
+    "heartstone": {
+      "unlock_cost": null,
+      "size_weight": 1.0
+    },
+    "thicket": {
+      "unlock_cost": {"heartwood": 50},
+      "size_weight": 1.0
+    },
+    "canopy": {
+      "unlock_cost": {"heartwood": 100, "glamour": 20},
+      "size_weight": 1.0
+    },
+    "feywild_boundary": {
+      "unlock_cost": {"glamour": 150},
+      "size_weight": 1.0
+    },
+    "oldwood": {
+      "unlock_cost": {"heartwood": 300, "glamour": 200},
+      "size_weight": 1.0
+    }
+  },
+  "events": {
+    "creature_event_interval_seconds": 300,
+    "grove_event_interval_seconds":    600,
+    "visitor_event_interval_seconds":  3600
+  },
+  "autosave_interval_seconds": 60
+}
