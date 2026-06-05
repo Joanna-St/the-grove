@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 import time
 
@@ -31,17 +32,15 @@ DIM   = (120, 120, 120)
 # HUD helpers
 
 def render_time_hud(surface, font_sm, time_sys, x, y):
-    import pygame
     period = time_sys.period
     day    = time_sys.day_number
     tod    = time_sys.time_of_day
 
-    # Day arc bar
     bar_w = 200
     pygame.draw.rect(surface, (40, 40, 50), (x, y, bar_w, 12), border_radius=6)
     fill = int(bar_w * tod)
     arc_col = {"dawn": (230, 160, 80), "day": (220, 200, 100),
-                "dusk": (200, 100, 50), "night": (60, 60, 130)}[period]
+               "dusk": (200, 100, 50), "night": (60, 60, 130)}[period]
     if fill > 0:
         pygame.draw.rect(surface, arc_col, (x, y, fill, 12), border_radius=6)
     pygame.draw.rect(surface, (80, 80, 90), (x, y, bar_w, 12), 1, border_radius=6)
@@ -51,7 +50,6 @@ def render_time_hud(surface, font_sm, time_sys, x, y):
 
 
 def render_dev_badge(surface, font_sm, x, y):
-    import pygame
     badge = font_sm.render("DEV SPEED  [D]", True, (255, 220, 60))
     surface.blit(badge, (x, y))
 
@@ -64,7 +62,6 @@ def render_keybinds(surface, font_sm, x, y):
 
 
 def render_save_flash(surface, font_sm, x, y, alpha):
-    import pygame
     msg = font_sm.render("Saved.", True, (160, 220, 160))
     msg.set_alpha(alpha)
     surface.blit(msg, (x, y))
@@ -77,8 +74,23 @@ def main():
     config = load_config()
     win_cfg = config["window"]
 
+    game_w, game_h = win_cfg["width"], win_cfg["height"]
+    fullscreen = win_cfg.get("fullscreen", False)
+
+    # Must read desktop resolution before any set_mode call
     pygame.init()
-    screen = pygame.display.set_mode((win_cfg["width"], win_cfg["height"]))
+    if fullscreen:
+        info = pygame.display.Info()
+        os.environ['SDL_VIDEO_WINDOW_POS'] = '0,0'
+        screen = pygame.display.set_mode((info.current_w, info.current_h), pygame.NOFRAME)
+        blit_x = (info.current_w - game_w) // 2
+        blit_y = (info.current_h - game_h) // 2
+        game_surf = pygame.Surface((game_w, game_h))
+    else:
+        screen = pygame.display.set_mode((game_w, game_h))
+        game_surf = screen
+        blit_x = blit_y = 0
+
     pygame.display.set_caption(win_cfg["title"])
     clock = pygame.time.Clock()
 
@@ -96,7 +108,7 @@ def main():
 
     autosave_interval = config["autosave_interval_seconds"]
     last_autosave     = time.time()
-    save_flash_ttl    = 0.0     # seconds remaining to show flash
+    save_flash_ttl    = 0.0
 
     running = True
     while running:
@@ -117,8 +129,8 @@ def main():
 
         # ---- Update ----
         time_sys.update(dt_real)
-        eff_mult   = config["time"]["dev_speed_multiplier"] if time_sys.dev_speed else 1.0
-        dt_game    = dt_real * eff_mult
+        eff_mult = config["time"]["dev_speed_multiplier"] if time_sys.dev_speed else 1.0
+        dt_game  = dt_real * eff_mult
         resources.tick(dt_game, areas)
         events.update(dt_game)
 
@@ -131,34 +143,29 @@ def main():
             last_autosave = now
 
         # ---- Render ----
-        draw_scene(screen, time_sys.period, time_sys.time_of_day,
-                   win_cfg["width"], win_cfg["height"])
+        draw_scene(game_surf, time_sys.period, time_sys.time_of_day, game_w, game_h)
 
-        # Title
         title = font_lg.render("The Grove", True, (200, 230, 180))
-        screen.blit(title, (20, 20))
+        game_surf.blit(title, (20, 20))
 
-        # Resources panel
-        resources.render(screen, font, 20, 50)
+        resources.render(game_surf, font, 20, 50)
+        render_time_hud(game_surf, font_sm, time_sys, 20, 200)
 
-        # Time HUD
-        render_time_hud(screen, font_sm, time_sys, 20, 200)
-
-        # Dev speed badge
         if time_sys.dev_speed:
-            render_dev_badge(screen, font_sm, 20, 230)
+            render_dev_badge(game_surf, font_sm, 20, 230)
 
-        # Save flash
         if save_flash_ttl > 0:
             alpha = int(255 * min(1.0, save_flash_ttl))
-            render_save_flash(screen, font_sm, 20, 250, alpha)
+            render_save_flash(game_surf, font_sm, 20, 250, alpha)
 
-        # Keybind hints (bottom-left)
-        render_keybinds(screen, font_sm, 20, win_cfg["height"] - 60)
+        render_keybinds(game_surf, font_sm, 20, game_h - 60)
+
+        if fullscreen:
+            screen.fill((0, 0, 0))
+            screen.blit(game_surf, (blit_x, blit_y))
 
         pygame.display.flip()
 
-    # Save on clean exit
     save_load.save_game(time_sys, resources, areas, creatures)
     pygame.quit()
     sys.exit()

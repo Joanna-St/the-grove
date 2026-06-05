@@ -1,9 +1,10 @@
 {
   "window": {
-    "width": 1024,
-    "height": 768,
+    "width": 900,
+    "height": 640,
     "fps": 60,
-    "title": "The Grove"
+    "title": "The Grove",
+    "fullscreen": true
   },
   "time": {
     "day_length_real_seconds": 600,
