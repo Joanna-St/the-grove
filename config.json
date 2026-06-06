@@ -28,9 +28,12 @@
       "glamour":   0.005
     }
   },
-  "glamour_decay": {
-    "feywild_boundary_rate_per_second": 0.003,
-    "feywild_boundary_threshold": 30.0
+  "protection": {
+    "starting": 80.0,
+    "max": 100.0,
+    "decay_per_real_second": 0.02,
+    "feywild_boundary_extra_decay": 0.03,
+    "min_generation_multiplier": 0.1
   },
   "creatures": {
     "stirge": {
@@ -80,7 +83,8 @@
     },
     "tend_statue": {
       "cooldown_real_seconds": 60,
-      "glamour_yield":         8.0
+      "glamour_cost":          5.0,
+      "protection_restore":    30.0
     }
   },
   "areas": {

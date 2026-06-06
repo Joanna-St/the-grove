@@ -241,11 +241,16 @@ def main():
                         flash_text = dlg.pick(dlg.FORAGE)
                         flash_ttl  = 4.0
                 elif event.key == pygame.K_t:
-                    if tend_cd <= 0:
-                        resources.add("glamour", action_cfg["tend_statue"]["glamour_yield"])
+                    tc = action_cfg["tend_statue"]
+                    if tend_cd <= 0 and resources.glamour >= tc["glamour_cost"]:
+                        resources.add("glamour",    -tc["glamour_cost"])
+                        resources.add("protection",  tc["protection_restore"])
                         tend_cd    = tend_cd_max
                         flash_text = dlg.pick(dlg.TEND_STATUE)
                         flash_ttl  = 4.0
+                    elif tend_cd <= 0:
+                        flash_text = "Not enough glamour to tend the statue."
+                        flash_ttl  = 3.0
 
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 # Translate screen click → game_surf coordinates
@@ -268,17 +273,23 @@ def main():
                         flash_ttl  = 5.0
 
                 elif st_rect.collidepoint(gx, gy) and tend_cd <= 0:
-                    resources.add("glamour", action_cfg["tend_statue"]["glamour_yield"])
-                    tend_cd    = tend_cd_max
-                    flash_text = dlg.pick(dlg.TEND_STATUE)
-                    flash_ttl  = 4.0
+                    tc = action_cfg["tend_statue"]
+                    if resources.glamour >= tc["glamour_cost"]:
+                        resources.add("glamour",    -tc["glamour_cost"])
+                        resources.add("protection",  tc["protection_restore"])
+                        tend_cd    = tend_cd_max
+                        flash_text = dlg.pick(dlg.TEND_STATUE)
+                        flash_ttl  = 4.0
+                    else:
+                        flash_text = "Not enough glamour to tend the statue."
+                        flash_ttl  = 3.0
 
         # ---- Update ----
         time_sys.update(dt_real)
         eff_mult = config["time"]["dev_speed_multiplier"] if time_sys.dev_speed else 1.0
         dt_game  = dt_real * eff_mult
 
-        resources.tick(dt_game, areas)
+        resources.tick(dt_real, dt_game, areas)
         creatures.update(dt_real, dt_game, time_sys.game_seconds, resources)
         events.update(dt_game)
 
@@ -306,19 +317,20 @@ def main():
         resources.render(game_surf, font, 20, 46)
 
         # Time HUD (bar + "Day N — Period" label)
-        render_time_hud(game_surf, font_sm, time_sys, 20, 158)
+        # Resource panel: 4 rows × 32px + 10px padding = 138px, starts at y=46 → ends at 184
+        render_time_hud(game_surf, font_sm, time_sys, 20, 196)
 
-        # Bond status — starts safely below the time label (label is at 158+16=174)
-        render_bond_status(game_surf, font_sm, creatures, 20, 192)
+        # Bond status — below time label (label is at 196+16=212)
+        render_bond_status(game_surf, font_sm, creatures, 20, 232)
 
         # Dev speed badge
         if time_sys.dev_speed:
-            render_dev_badge(game_surf, font_sm, 20, 232)
+            render_dev_badge(game_surf, font_sm, 20, 272)
 
         # Flash message (event text / save confirmation)
         if flash_ttl > 0:
             alpha = int(255 * min(1.0, flash_ttl))
-            render_flash(game_surf, font_sm, flash_text, 20, 252, alpha)
+            render_flash(game_surf, font_sm, flash_text, 20, 292, alpha)
 
         # Creature dialogue bubbles
         stirge    = creatures.get("stirge")

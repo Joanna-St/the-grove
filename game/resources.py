@@ -1,63 +1,90 @@
 class ResourceTracker:
     """
-    Tracks forage, heartwood, glamour.
-    Passive generation scales with active grove areas (size) and glamour health.
+    Tracks forage, heartwood, glamour, and protection.
+    Passive generation scales with protection level × grove size.
+    Protection decays in real time; glamour is spent to restore it via statue tending.
     """
 
-    RESOURCES = ("forage", "heartwood", "glamour")
+    RESOURCES = ("forage", "heartwood", "glamour", "protection")
+    MAXES = {
+        "forage": 500, "heartwood": 500, "glamour": 500, "protection": 100,
+    }
     COLOURS = {
-        "forage":    (106, 168,  79),
-        "heartwood": (153,  76,   0),
-        "glamour":   (103,  78, 167),
+        "forage":     (106, 168,  79),
+        "heartwood":  (153,  76,   0),
+        "glamour":    (103,  78, 167),
+        "protection": (190, 155,  45),
     }
     LABEL_COLOURS = {
-        "forage":    (180, 230, 150),
-        "heartwood": (210, 140,  80),
-        "glamour":   (180, 150, 230),
+        "forage":     (180, 230, 150),
+        "heartwood":  (210, 140,  80),
+        "glamour":    (180, 150, 230),
+        "protection": (230, 205, 110),
+    }
+    DISPLAY_NAMES = {
+        "forage": "Forage", "heartwood": "Heartwood",
+        "glamour": "Glamour", "protection": "Shield",
     }
 
     def __init__(self, config):
-        self._cfg = config
-        self._rates = config["resources"]["passive_base_rate_per_second"]
+        self._cfg      = config
+        self._rates    = config["resources"]["passive_base_rate_per_second"]
+        self._prot_cfg = config["protection"]
         start = config["resources"]["starting"]
-        self.forage    = float(start["forage"])
-        self.heartwood = float(start["heartwood"])
-        self.glamour   = float(start["glamour"])
+        self.forage     = float(start["forage"])
+        self.heartwood  = float(start["heartwood"])
+        self.glamour    = float(start["glamour"])
+        self.protection = float(self._prot_cfg["starting"])
 
     # ------------------------------------------------------------------
     # Persistence
 
     def to_dict(self):
         return {
-            "forage":    self.forage,
-            "heartwood": self.heartwood,
-            "glamour":   self.glamour,
+            "forage":     self.forage,
+            "heartwood":  self.heartwood,
+            "glamour":    self.glamour,
+            "protection": self.protection,
         }
 
     def from_dict(self, data):
-        self.forage    = float(data.get("forage",    self.forage))
-        self.heartwood = float(data.get("heartwood", self.heartwood))
-        self.glamour   = float(data.get("glamour",   self.glamour))
+        self.forage     = float(data.get("forage",     self.forage))
+        self.heartwood  = float(data.get("heartwood",  self.heartwood))
+        self.glamour    = float(data.get("glamour",    self.glamour))
+        self.protection = float(data.get("protection", self.protection))
 
     # ------------------------------------------------------------------
     # Simulation
 
-    def tick(self, dt_game, areas):
+    def tick(self, dt_real, dt_game, areas):
         """
-        dt_game: in-game seconds elapsed this frame.
-        areas:   Areas instance — provides grove_size and glamour_ratio.
+        dt_real: real seconds this frame (for protection decay).
+        dt_game: in-game seconds this frame (for resource generation).
         """
-        glamour_ratio = min(1.0, self.glamour / max(1.0, areas.glamour_threshold()))
-        size_mult = areas.size_multiplier()
-        tick_mult = glamour_ratio * size_mult * dt_game
+        # Generation scales with protection; floor ensures a faint trickle at 0
+        prot_ratio = self.protection / self._prot_cfg["max"]
+        min_mult   = self._prot_cfg["min_generation_multiplier"]
+        gen_mult   = min_mult + (1.0 - min_mult) * prot_ratio
+
+        size_mult  = areas.size_multiplier()
+        tick_mult  = gen_mult * size_mult * dt_game
 
         self.forage    += self._rates["forage"]    * tick_mult
         self.heartwood += self._rates["heartwood"] * tick_mult
         self.glamour   += self._rates["glamour"]   * tick_mult
 
+        # Protection decays in real time (not game time — stays meaningful in dev mode)
+        decay = self._prot_cfg["decay_per_real_second"] * size_mult
+        if areas.has_feywild_boundary():
+            decay += self._prot_cfg["feywild_boundary_extra_decay"]
+        self.protection = max(0.0, self.protection - decay * dt_real)
+
     def add(self, resource, amount):
         current = getattr(self, resource, 0.0)
-        setattr(self, resource, max(0.0, current + amount))
+        if resource == "protection":
+            setattr(self, resource, min(self._prot_cfg["max"], max(0.0, current + amount)))
+        else:
+            setattr(self, resource, max(0.0, current + amount))
 
     # ------------------------------------------------------------------
     # Rendering
@@ -74,18 +101,19 @@ class ResourceTracker:
         surface.blit(bg, (x, y))
 
         for i, name in enumerate(self.RESOURCES):
-            val = getattr(self, name)
+            val   = getattr(self, name)
             row_y = y + padding + i * (bar_h + padding)
 
-            label = font.render(name.capitalize(), True, self.LABEL_COLOURS[name])
+            label = font.render(self.DISPLAY_NAMES[name], True, self.LABEL_COLOURS[name])
             surface.blit(label, (x + 8, row_y + 3))
 
             bar_x = x + 90
             pygame.draw.rect(surface, (50, 50, 60), (bar_x, row_y, bar_w, bar_h), border_radius=4)
-            fill = min(int(bar_w * (val / 500.0)), bar_w)
+            fill = min(int(bar_w * (val / self.MAXES[name])), bar_w)
             if fill > 0:
                 pygame.draw.rect(surface, self.COLOURS[name], (bar_x, row_y, fill, bar_h), border_radius=4)
             pygame.draw.rect(surface, (100, 100, 120), (bar_x, row_y, bar_w, bar_h), 1, border_radius=4)
 
-            num = font.render(f"{val:.1f}", True, (220, 220, 220))
+            num_text = f"{val:.0f}%" if name == "protection" else f"{val:.1f}"
+            num = font.render(num_text, True, (220, 220, 220))
             surface.blit(num, (bar_x + bar_w + 6, row_y + 3))

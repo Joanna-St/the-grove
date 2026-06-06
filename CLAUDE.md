@@ -60,9 +60,7 @@ Full phase descriptions in design doc.
 **Phase 3 — Full Progression**
 - [ ] Remaining four areas unlock in order (Thicket, Canopy, Feywild Boundary, Oldwood)
 - [ ] Remaining six creatures arrive with personalities, bond milestones, and perks
-- [ ] Restoration mechanic fully working, passive generation scaling with glamour and grove size
-
-**Carry-in from Phase 2:** glamour base drain agreed but not yet implemented — add at the start of Phase 3 (small passive drain ~0.002/s so glamour can drop and tending remains meaningful; net positive vs passive generation rate of 0.005/s).
+- [ ] Restoration mechanic fully working, passive generation scaling with protection and grove size
 
 Deliverable: full progression arc playable from start to win condition.
 
@@ -77,7 +75,7 @@ made that future sessions need to know about.*
 ### Session 2 — [03.06.2026]
 **Phase 1 complete.**
 - `config.json` — all tunable values (resource rates, area costs, day length, dev speed multiplier, event intervals, autosave interval)
-- `game/time_system.py` — hybrid real/in-game time; offline progress calculated on load; dev speed toggle (D key); dawn/day/dusk/night periods
+- `game/time_system.py` — in-game time advances only while game is open (offline progress removed in Session 5); dev speed toggle (D key); dawn/day/dusk/night periods
 - `game/resources.py` — forage, heartwood, glamour tracking; passive generation scales with glamour health × grove size; rendered as bars + text
 - `game/save_load.py` — JSON save/load; auto-saves every 60s and on clean exit; saves on demand (S key)
 - `game/areas.py` — area unlock tracking; heartstone always active; size_multiplier for passive scaling
@@ -111,4 +109,16 @@ made that future sessions need to know about.*
 - **Known gap:** glamour base drain agreed (0.002/s) but not implemented — carry into Phase 3 start
 - **Decisions:** creature contributions are passive/continuous (not interaction-triggered); bond XP visual = brief gold flash on bond line; no floating resource numbers for now (parked in Ideas); resource panel width fixed to contain numbers
 - Deliverable confirmed: name entry works, stirge and blink dog arrive on schedule, interactions build bond, stat tending works, save/load preserves all state
-- **Next:** Phase 3 — Full Progression (add glamour drain first, then area unlock mechanic, then remaining six creatures)
+- **Next:** Phase 3 — Full Progression (area unlock mechanic first, then remaining six creatures)
+
+### Session 5 — [06.06.2026]
+**Phase 3 pre-work: Protection redesign (unplanned but necessary).**
+- Design doc updated (via Claude AI consultation) — glamour drain scrapped in favour of a new separate **Protection** stat
+- `game/resources.py` — Protection added as fourth resource (0–100%); passive generation now scales with protection level × grove size; floor at 10% so generation never fully stops; protection decays in real time (not game time), scaling with number of unlocked areas + Feywild Boundary bonus; `add()` caps protection at max
+- `config.json` — `glamour_decay` removed; `protection` block added (starting 80, max 100, decay 0.02/s, feywild extra 0.03/s, min generation multiplier 0.1); `tend_statue` reworked: now costs 5 glamour and restores 30 protection (previously yielded glamour)
+- `game/areas.py` — `glamour_threshold()` removed; `has_feywild_boundary()` added
+- `game/time_system.py` — offline progress removed; grove waits when closed (resources and time do not advance while game is shut)
+- `main.py` — tend-statue action updated (costs glamour, restores protection; shows warning if glamour insufficient); HUD y-positions shifted down to accommodate fourth resource bar; `tick()` call updated to pass `dt_real`
+- `IDEAS.md` — added: shield decay tuning, "Shield" display name revisit, resource storage caps
+- **Decisions:** protection decays in real time (not game time) so dev speed mode doesn't drain it faster; glamour is now purely a resource that accumulates and is spent; "Shield" is the current HUD label for protection, flagged for renaming in Phase 5
+- **Next:** area unlock mechanic (UI + spending resources to restore areas)

@@ -31,11 +31,8 @@ class Areas:
     def size_multiplier(self):
         return float(len(self._unlocked))
 
-    def glamour_threshold(self):
-        """Minimum glamour needed to keep the feywild boundary stable."""
-        if "feywild_boundary" in self._unlocked:
-            return self._cfg["feywild_boundary"]["unlock_cost"].get("glamour", 30.0)
-        return 1.0
+    def has_feywild_boundary(self):
+        return "feywild_boundary" in self._unlocked
 
     def unlock_cost(self, name):
         return self._cfg[name].get("unlock_cost") or {}

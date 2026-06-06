@@ -1,36 +1,26 @@
-import time
-
-
 class TimeSystem:
     """
-    Hybrid time: real elapsed seconds drive in-game time even when the game is closed.
+    Session time: game_seconds advance only while the game is open.
+    The grove waits — it does not suffer while closed.
     One in-game day = day_length_real_seconds of real time (multiplied by dev_speed when active).
     """
 
     def __init__(self, config):
-        self._day_len = config["time"]["day_length_real_seconds"]
+        self._day_len  = config["time"]["day_length_real_seconds"]
         self._dev_mult = config["time"]["dev_speed_multiplier"]
         self._segments = config["time"]["time_of_day_segments"]
 
-        self.dev_speed = False
+        self.dev_speed    = False
         self._game_seconds = 0.0
-        self._last_real_timestamp = time.time()
 
     # ------------------------------------------------------------------
     # Persistence
 
     def to_dict(self):
-        return {
-            "game_seconds": self._game_seconds,
-            "real_timestamp": time.time(),
-        }
+        return {"game_seconds": self._game_seconds}
 
     def from_dict(self, data):
-        saved_ts = data.get("real_timestamp", time.time())
-        self._game_seconds = data.get("game_seconds", 0.0)
-        real_elapsed = time.time() - saved_ts
-        self._game_seconds += real_elapsed * self._effective_multiplier()
-        self._last_real_timestamp = time.time()
+        self._game_seconds = float(data.get("game_seconds", 0.0))
 
     # ------------------------------------------------------------------
     # Update
@@ -38,7 +28,6 @@ class TimeSystem:
     def update(self, dt_real):
         """Advance time by dt_real seconds of real time."""
         self._game_seconds += dt_real * self._effective_multiplier()
-        self._last_real_timestamp = time.time()
 
     def _effective_multiplier(self):
         return self._dev_mult if self.dev_speed else 1.0
