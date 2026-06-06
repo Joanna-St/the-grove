@@ -16,8 +16,16 @@ from game import dialogue as dlg
 from game.renderer import (
     draw_scene, draw_dialogue, draw_action_panel,
     draw_action_menu, action_menu_item_rects,
-    stirge_rect, blink_dog_rect, statue_rect,
-    stirge_pos, blink_dog_pos,
+    draw_areas_panel,
+    stirge_rect, stirge_pos,
+    blink_dog_rect, blink_dog_pos,
+    owlbear_rect, owlbear_pos,
+    pseudodragon_rect, pseudodragon_pos,
+    flumph_rect, flumph_pos,
+    moss_wisp_rect, moss_wisp_pos,
+    pixie_rect, pixie_pos,
+    displacer_beast_rect, displacer_beast_pos,
+    statue_rect,
 )
 
 CONFIG_PATH = "config.json"
@@ -139,7 +147,7 @@ def render_flash(surface, font_sm, text, x, y, alpha):
 
 
 def render_keybinds(surface, font_sm, x, y):
-    for i, line in enumerate(["[S] Save", "[D] Dev speed", "[ESC] Quit"]):
+    for i, line in enumerate(["[S] Save", "[D] Dev speed", "[R] Restore areas", "[ESC] Quit"]):
         t = font_sm.render(line, True, DIM)
         surface.blit(t, (x, y + i * 18))
 
@@ -217,16 +225,35 @@ def main():
     forage_cd_max    = action_cfg["forage"]["cooldown_real_seconds"]
     tend_cd_max      = action_cfg["tend_statue"]["cooldown_real_seconds"]
 
-    action_menu = None  # None or {"creature": c, "pool": pool, "anchor": (x,y), "hover": int}
+    action_menu       = None   # None or {"creature": c, "pool": pool, "anchor": (x,y), "hover": int}
+    show_areas_panel  = False
+    areas_clickable   = {}     # {area_name: rect}, rebuilt each frame when panel is open
 
     autosave_interval = config["autosave_interval_seconds"]
     last_autosave     = time.time()
     flash_text        = ""
     flash_ttl         = 0.0
 
-    # Clickable rects (in game_surf coordinates)
-    s_rect  = stirge_rect(game_w, game_h)
-    bd_rect = blink_dog_rect(game_w, game_h)
+    # Data-driven creature registry — drives click detection and dialogue routing
+    _CREATURE_REGISTRY = [
+        {"name": "stirge",          "pool": dlg.STIRGE,          "feed_pool": dlg.STIRGE_FEED,
+         "rect_fn": stirge_rect,          "pos_fn": stirge_pos},
+        {"name": "blink_dog",       "pool": dlg.BLINK_DOG,       "feed_pool": dlg.BLINK_DOG_FEED,
+         "rect_fn": blink_dog_rect,       "pos_fn": blink_dog_pos},
+        {"name": "owlbear",         "pool": dlg.OWLBEAR,         "feed_pool": dlg.OWLBEAR_FEED,
+         "rect_fn": owlbear_rect,         "pos_fn": owlbear_pos},
+        {"name": "pseudodragon",    "pool": dlg.PSEUDODRAGON,    "feed_pool": dlg.PSEUDODRAGON_FEED,
+         "rect_fn": pseudodragon_rect,    "pos_fn": pseudodragon_pos},
+        {"name": "flumph",          "pool": dlg.FLUMPH,          "feed_pool": dlg.FLUMPH_FEED,
+         "rect_fn": flumph_rect,          "pos_fn": flumph_pos},
+        {"name": "moss_wisp",       "pool": dlg.MOSS_WISP,       "feed_pool": dlg.MOSS_WISP_FEED,
+         "rect_fn": moss_wisp_rect,       "pos_fn": moss_wisp_pos},
+        {"name": "pixie",           "pool": dlg.PIXIE,           "feed_pool": dlg.PIXIE_FEED,
+         "rect_fn": pixie_rect,           "pos_fn": pixie_pos},
+        {"name": "displacer_beast", "pool": dlg.DISPLACER_BEAST, "feed_pool": dlg.DISPLACER_BEAST_FEED,
+         "rect_fn": displacer_beast_rect, "pos_fn": displacer_beast_pos},
+    ]
+
     st_rect = statue_rect(game_w, game_h)
 
     running = True
@@ -250,13 +277,19 @@ def main():
 
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    if action_menu:
+                    if show_areas_panel:
+                        show_areas_panel = False
+                    elif action_menu:
                         action_menu = None
                     else:
                         running = False
                 elif event.key == pygame.K_s:
                     save_load.save_game(time_sys, resources, areas, creatures, player_name)
                     flash_text, flash_ttl = "Saved.", 2.5
+                elif event.key == pygame.K_r:
+                    show_areas_panel = not show_areas_panel
+                    if show_areas_panel:
+                        action_menu = None
                 elif event.key == pygame.K_d:
                     time_sys.toggle_dev_speed()
                 elif event.key == pygame.K_f:
@@ -286,10 +319,25 @@ def main():
                 mx, my = event.pos
                 gx, gy = mx - blit_x, my - blit_y
 
-                stirge    = creatures.get("stirge")
-                blink_dog = creatures.get("blink_dog")
+                if show_areas_panel:
+                    for area_name, rect in areas_clickable.items():
+                        if rect.collidepoint(gx, gy):
+                            if areas.can_afford(area_name, resources):
+                                for res, amount in areas.unlock_cost(area_name).items():
+                                    resources.add(res, -amount)
+                                areas.unlock(area_name, time_sys.game_seconds)
+                                flash_text = dlg.AREA_RESTORED.get(
+                                    area_name,
+                                    f"The {area_name.replace('_', ' ').title()} has been restored."
+                                )
+                                flash_ttl        = 5.0
+                                show_areas_panel = False
+                            else:
+                                flash_text = "Not enough resources."
+                                flash_ttl  = 3.0
+                            break
 
-                if action_menu:
+                elif action_menu:
                     # Menu open: check items, then close regardless
                     creature = action_menu["creature"]
                     opts  = _creature_menu_options(creature, resources, config)
@@ -312,35 +360,33 @@ def main():
                             break
                     action_menu = None
 
-                elif stirge and s_rect.collidepoint(gx, gy) and stirge.is_present:
-                    action_menu = {
-                        "creature":  stirge,
-                        "pool":      dlg.STIRGE,
-                        "feed_pool": dlg.STIRGE_FEED,
-                        "anchor":    stirge_pos(game_w, game_h),
-                        "hover":     -1,
-                    }
+                else:
+                    # Check creature clicks (data-driven)
+                    clicked_creature = False
+                    for entry in _CREATURE_REGISTRY:
+                        c = creatures.get(entry["name"])
+                        if c and c.is_present and entry["rect_fn"](game_w, game_h).collidepoint(gx, gy):
+                            action_menu = {
+                                "creature":  c,
+                                "pool":      entry["pool"],
+                                "feed_pool": entry["feed_pool"],
+                                "anchor":    entry["pos_fn"](game_w, game_h),
+                                "hover":     -1,
+                            }
+                            clicked_creature = True
+                            break
 
-                elif blink_dog and bd_rect.collidepoint(gx, gy) and blink_dog.is_present:
-                    action_menu = {
-                        "creature":  blink_dog,
-                        "pool":      dlg.BLINK_DOG,
-                        "feed_pool": dlg.BLINK_DOG_FEED,
-                        "anchor":    blink_dog_pos(game_w, game_h),
-                        "hover":     -1,
-                    }
-
-                elif st_rect.collidepoint(gx, gy) and tend_cd <= 0:
-                    tc = action_cfg["tend_statue"]
-                    if resources.glamour >= tc["glamour_cost"]:
-                        resources.add("glamour",    -tc["glamour_cost"])
-                        resources.add("protection",  tc["protection_restore"])
-                        tend_cd    = tend_cd_max
-                        flash_text = dlg.pick(dlg.TEND_STATUE)
-                        flash_ttl  = 4.0
-                    else:
-                        flash_text = "Not enough glamour to tend the statue."
-                        flash_ttl  = 3.0
+                    if not clicked_creature and st_rect.collidepoint(gx, gy) and tend_cd <= 0:
+                        tc = action_cfg["tend_statue"]
+                        if resources.glamour >= tc["glamour_cost"]:
+                            resources.add("glamour",    -tc["glamour_cost"])
+                            resources.add("protection",  tc["protection_restore"])
+                            tend_cd    = tend_cd_max
+                            flash_text = dlg.pick(dlg.TEND_STATUE)
+                            flash_ttl  = 4.0
+                        else:
+                            flash_text = "Not enough glamour to tend the statue."
+                            flash_ttl  = 3.0
 
         # ---- Update ----
         time_sys.update(dt_real)
@@ -348,7 +394,7 @@ def main():
         dt_game  = dt_real * eff_mult
 
         resources.tick(dt_real, dt_game, areas)
-        creatures.update(dt_real, dt_game, time_sys.game_seconds, time_sys.day_number, resources)
+        creatures.update(dt_real, dt_game, time_sys.game_seconds, time_sys.day_number, areas, resources)
         events.update(dt_game)
 
         if forage_cd > 0: forage_cd -= dt_real
@@ -379,28 +425,34 @@ def main():
         render_time_hud(game_surf, font_sm, time_sys, 20, 196)
 
         # Bond status — below time label (label is at 196+16=212)
-        render_bond_status(game_surf, font_sm, creatures, 20, 232)
+        bond_y = 232
+        render_bond_status(game_surf, font_sm, creatures, 20, bond_y)
 
-        # Dev speed badge
+        # Dev badge and flash sit below the last bond line, however many there are
+        bond_end_y = bond_y + max(len(creatures.present()), 1) * 18
+
         if time_sys.dev_speed:
-            render_dev_badge(game_surf, font_sm, 20, 272)
+            render_dev_badge(game_surf, font_sm, 20, bond_end_y + 6)
+            flash_base_y = bond_end_y + 26
+        else:
+            flash_base_y = bond_end_y + 6
 
         # Flash message (event text / save confirmation)
         if flash_ttl > 0:
             alpha = int(255 * min(1.0, flash_ttl))
-            render_flash(game_surf, font_sm, flash_text, 20, 292, alpha)
+            render_flash(game_surf, font_sm, flash_text, 20, flash_base_y, alpha)
 
-        # Creature dialogue bubbles
-        stirge    = creatures.get("stirge")
-        blink_dog = creatures.get("blink_dog")
+        # Creature dialogue bubbles (data-driven)
+        for entry in _CREATURE_REGISTRY:
+            c = creatures.get(entry["name"])
+            if c and c.dialogue_text and c.dialogue_ttl > 0:
+                cx, cy = entry["pos_fn"](game_w, game_h)
+                draw_dialogue(game_surf, font_sm, c.dialogue_text, cx, cy - 18)
 
-        if stirge and stirge.dialogue_text and stirge.dialogue_ttl > 0:
-            sx, sy = stirge_pos(game_w, game_h)
-            draw_dialogue(game_surf, font_sm, stirge.dialogue_text, sx, sy - 16)
-
-        if blink_dog and blink_dog.dialogue_text and blink_dog.dialogue_ttl > 0:
-            bx, by = blink_dog_pos(game_w, game_h)
-            draw_dialogue(game_surf, font_sm, blink_dog.dialogue_text, bx, by - 18)
+        # Areas restoration panel (drawn over scene, under nothing)
+        if show_areas_panel:
+            areas_clickable = draw_areas_panel(
+                game_surf, font, font_sm, areas, resources, game_w, game_h)
 
         # Creature action menu
         if action_menu:
@@ -419,7 +471,7 @@ def main():
         ])
 
         # Keybinds
-        render_keybinds(game_surf, font_sm, 20, game_h - 60)
+        render_keybinds(game_surf, font_sm, 20, game_h - 78)
 
         if fullscreen:
             screen.fill((0, 0, 0))

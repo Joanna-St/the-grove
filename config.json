@@ -37,38 +37,56 @@
   },
   "creatures": {
     "stirge": {
+      "area": "heartstone",
+      "arrival_delay_game_seconds": 120,
       "forage_per_second": [0.010, 0.018, 0.030, 0.050],
       "feeding": {"feeds_per_day": 2, "forage_cost": 3, "bond_xp_per_feed": 8, "cooldown_real_seconds": 300}
     },
     "blink_dog": {
+      "area": "heartstone",
+      "arrival_delay_game_seconds": 360,
       "forage_per_second":    [0.005, 0.010, 0.015, 0.020],
       "heartwood_per_second": [0.005, 0.010, 0.015, 0.020],
       "glamour_per_second":   [0.001, 0.002, 0.003, 0.005],
       "feeding": {"feeds_per_day": 2, "forage_cost": 3, "bond_xp_per_feed": 8, "cooldown_real_seconds": 300}
     },
     "owlbear": {
-      "heartwood_per_second": [0.050, 0.080, 0.120, 0.200]
+      "area": "thicket",
+      "arrival_delay_game_seconds": 180,
+      "heartwood_per_second": [0.050, 0.080, 0.120, 0.200],
+      "feeding": {"feeds_per_day": 2, "forage_cost": 5, "bond_xp_per_feed": 8, "cooldown_real_seconds": 300}
     },
     "pseudodragon": {
-      "glamour_per_second":   [0.020, 0.040, 0.060, 0.100]
+      "area": "canopy",
+      "arrival_delay_game_seconds": 60,
+      "glamour_per_second": [0.020, 0.040, 0.060, 0.100],
+      "feeding": {"feeds_per_day": 1, "forage_cost": 2, "bond_xp_per_feed": 8, "cooldown_real_seconds": 0}
     },
     "flumph": {
-      "glamour_per_second":   [0.015, 0.030, 0.050, 0.080]
+      "area": "feywild_boundary",
+      "arrival_delay_game_seconds": 180,
+      "glamour_per_second": [0.015, 0.030, 0.050, 0.080],
+      "feeding": {"feeds_per_day": 1, "forage_cost": 2, "bond_xp_per_feed": 8, "cooldown_real_seconds": 0}
     },
     "moss_wisp": {
-      "forage_per_second":    [0.020, 0.040, 0.070, 0.100]
+      "area": "oldwood",
+      "arrival_delay_game_seconds": 30,
+      "forage_per_second": [0.020, 0.040, 0.070, 0.100],
+      "feeding": {"feeds_per_day": 1, "forage_cost": 2, "bond_xp_per_feed": 8, "cooldown_real_seconds": 0}
     },
     "pixie": {
-      "glamour_per_second":   [0.010, 0.025, 0.040, 0.070]
+      "area": "feywild_boundary",
+      "arrival_delay_game_seconds": 300,
+      "glamour_per_second": [0.010, 0.025, 0.040, 0.070],
+      "feeding": {"feeds_per_day": 1, "forage_cost": 2, "bond_xp_per_feed": 8, "cooldown_real_seconds": 0}
     },
     "displacer_beast": {
+      "area": "oldwood",
+      "arrival_delay_game_seconds": 600,
       "heartwood_per_second": [0.020, 0.040, 0.060, 0.100],
-      "glamour_per_second":   [0.020, 0.040, 0.060, 0.100]
+      "glamour_per_second":   [0.020, 0.040, 0.060, 0.100],
+      "feeding": {"feeds_per_day": 1, "forage_cost": 5, "bond_xp_per_feed": 8, "cooldown_real_seconds": 0}
     }
-  },
-  "arrival_game_seconds": {
-    "stirge":    120,
-    "blink_dog": 360
   },
   "bond": {
     "xp_per_interact":            12,

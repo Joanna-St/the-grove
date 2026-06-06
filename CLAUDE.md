@@ -50,19 +50,21 @@ the-grove/
 - [x] Phase 1 — Foundation
 - [x] Phase 1.5 — Minimal Visual Layer
 - [x] Phase 2 — Heartstone (playable demo)
-- [ ] Phase 3 — Full Progression
+- [x] Phase 3 — Full Progression
 - [ ] Phase 4 — Events & Visitors
 - [ ] Phase 5 — Art & Polish
 
 Full phase descriptions in design doc.
 
 ## Current Phase
-**Phase 3 — Full Progression**
-- [ ] Remaining four areas unlock in order (Thicket, Canopy, Feywild Boundary, Oldwood)
-- [ ] Remaining six creatures arrive with personalities, bond milestones, and perks
-- [ ] Restoration mechanic fully working, passive generation scaling with protection and grove size
+**Phase 4 — Events & Visitors**
+- [ ] Bottom text box UI (replaces floating dialogue bubbles and sidebar flash)
+- [ ] Creature event system (personality-driven flavour events)
+- [ ] Grove events (state-driven warnings and windfalls)
+- [ ] Visitor cameo arcs (six authored visitors from BG3 world)
+- [ ] Creature max-bond perks (most are event-system dependent)
 
-Deliverable: full progression arc playable from start to win condition.
+Deliverable: full event and visitor arc system playable.
 
 ## Session Log
 *Update before closing each session: what was completed, what's next, any decisions 
@@ -122,6 +124,15 @@ made that future sessions need to know about.*
 - `IDEAS.md` — added: shield decay tuning, "Shield" display name revisit, resource storage caps
 - **Decisions:** protection decays in real time (not game time) so dev speed mode doesn't drain it faster; glamour is now purely a resource that accumulates and is spent; "Shield" is the current HUD label for protection, flagged for renaming in Phase 5
 - **Next:** area unlock mechanic (UI + spending resources to restore areas)
+
+### Session 7 — [06.06.2026]
+**Phase 3 complete.**
+- `game/dialogue.py` — dialogue pools for all 6 new creatures (OWLBEAR, PSEUDODRAGON, FLUMPH, MOSS_WISP, PIXIE, DISPLACER_BEAST): 5 lines per bond level 0–3, 5 feed lines each, MILESTONES entries for all 8 creatures; Joanna edited several lines for tone
+- `game/renderer.py` — coded placeholder visuals for all 6 new creatures (owlbear, pseudodragon, flumph, moss_wisp, pixie, displacer_beast): each has `*_pos()`, `*_rect()`, `draw_*()` functions; flumph/moss_wisp/pixie/displacer_beast are time-of-day animated; draw_scene updated to draw all 8 creatures via loop
+- `main.py` — data-driven `_CREATURE_REGISTRY` list replaces explicit per-creature click handling; all 8 creatures wired for click detection, action menu, and dialogue bubble rendering; all 8 creature pos/rect functions imported
+- `config.json` — creature configs for all 6 new creatures already in place (from Session 6 planning)
+- **Decisions:** creature perks deferred — most are event-system dependent (Phase 4); blink dog scouting was inferred from flavour text, not specced; moss wisp gen boost also deferred to Phase 4; floating dialogue bubbles remain for now, to be replaced by bottom text box as first step of Phase 4
+- **Next:** Phase 4 — bottom text box UI first (replaces bubbles + sidebar flash), then event system
 
 ### Session 6 — [06.06.2026]
 **Phase 3 step 1: Feeding mechanic + creature action menu.**

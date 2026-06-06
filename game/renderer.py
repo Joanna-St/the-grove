@@ -272,6 +272,299 @@ def draw_blink_dog(surface, screen_w, screen_h, period, is_present, can_interact
 
 
 # ------------------------------------------------------------------
+# Owlbear — large, bear-bodied, owl-headed
+
+def owlbear_pos(screen_w, screen_h):
+    return (int(screen_w * 0.13), int(screen_h * 0.70))
+
+
+def owlbear_rect(screen_w, screen_h):
+    x, y = owlbear_pos(screen_w, screen_h)
+    return pygame.Rect(x - 28, y - 30, 56, 46)
+
+
+def draw_owlbear(surface, screen_w, screen_h, period, is_present, can_interact):
+    if not is_present:
+        return
+    x, y = owlbear_pos(screen_w, screen_h)
+
+    fur    = (70, 55, 40)
+    dark   = (45, 35, 25)
+    beak   = (130, 110, 60)
+    eye    = (220, 200, 80)
+
+    # Body — large oval
+    pygame.draw.ellipse(surface, fur, (x - 24, y - 18, 48, 32))
+    # Shoulder feathers
+    pygame.draw.ellipse(surface, dark, (x - 28, y - 22, 22, 14))
+    pygame.draw.ellipse(surface, dark, (x +  6, y - 22, 22, 14))
+    # Head — round owl head
+    pygame.draw.circle(surface, fur,  (x, y - 26), 16)
+    pygame.draw.circle(surface, dark, (x, y - 26), 16, 1)
+    # Ear tufts
+    pygame.draw.polygon(surface, dark, [(x - 10, y - 38), (x - 6, y - 46), (x - 2, y - 38)])
+    pygame.draw.polygon(surface, dark, [(x + 2,  y - 38), (x + 6, y - 46), (x + 10, y - 38)])
+    # Eyes
+    pygame.draw.circle(surface, eye,   (x - 6, y - 28), 5)
+    pygame.draw.circle(surface, eye,   (x + 6, y - 28), 5)
+    pygame.draw.circle(surface, (20, 15, 10), (x - 6, y - 28), 2)
+    pygame.draw.circle(surface, (20, 15, 10), (x + 6, y - 28), 2)
+    # Beak
+    pygame.draw.polygon(surface, beak, [(x - 3, y - 24), (x + 3, y - 24), (x, y - 18)])
+    # Legs
+    pygame.draw.line(surface, dark, (x - 10, y + 12), (x - 10, y + 24), 4)
+    pygame.draw.line(surface, dark, (x + 4,  y + 12), (x + 4,  y + 24), 4)
+
+    if can_interact:
+        pygame.draw.circle(surface, (200, 180, 100), (x, y), 30, 1)
+
+
+# ------------------------------------------------------------------
+# Pseudodragon — small, winged, perched high
+
+def pseudodragon_pos(screen_w, screen_h):
+    return (int(screen_w * 0.48), int(screen_h * 0.38))
+
+
+def pseudodragon_rect(screen_w, screen_h):
+    x, y = pseudodragon_pos(screen_w, screen_h)
+    return pygame.Rect(x - 22, y - 14, 44, 28)
+
+
+def draw_pseudodragon(surface, screen_w, screen_h, period, is_present, can_interact):
+    if not is_present:
+        return
+    x, y = pseudodragon_pos(screen_w, screen_h)
+
+    scale  = (120, 80, 60)
+    wing   = (90, 55, 40)
+    belly  = (170, 130, 100)
+    eye    = (255, 220, 60)
+
+    # Wings (membrane, swept back)
+    wing_pts_l = [(x - 8, y - 4), (x - 28, y - 18), (x - 18, y + 8)]
+    wing_pts_r = [(x + 8, y - 4), (x + 28, y - 18), (x + 18, y + 8)]
+    pygame.draw.polygon(surface, wing, wing_pts_l)
+    pygame.draw.polygon(surface, wing, wing_pts_r)
+    # Body
+    pygame.draw.ellipse(surface, scale, (x - 10, y - 8, 20, 16))
+    pygame.draw.ellipse(surface, belly, (x - 6,  y - 4, 12, 10))
+    # Head
+    pygame.draw.circle(surface, scale, (x + 10, y - 8), 8)
+    # Eye
+    pygame.draw.circle(surface, eye, (x + 13, y - 10), 3)
+    pygame.draw.circle(surface, (30, 20, 10), (x + 13, y - 10), 1)
+    # Snout
+    pygame.draw.line(surface, scale, (x + 16, y - 8), (x + 22, y - 6), 2)
+    # Tail (curls down)
+    pygame.draw.line(surface, scale, (x - 10, y + 6), (x - 20, y + 14), 3)
+    pygame.draw.line(surface, scale, (x - 20, y + 14), (x - 14, y + 20), 2)
+
+    if can_interact:
+        pygame.draw.circle(surface, (200, 180, 100), (x, y), 22, 1)
+
+
+# ------------------------------------------------------------------
+# Flumph — floating jellyfish, bioluminescent
+
+_flumph_bob = 0.0   # phase offset for bobbing
+
+
+def flumph_pos(screen_w, screen_h):
+    return (int(screen_w * 0.80), int(screen_h * 0.55))
+
+
+def flumph_rect(screen_w, screen_h):
+    x, y = flumph_pos(screen_w, screen_h)
+    return pygame.Rect(x - 18, y - 18, 36, 36)
+
+
+def draw_flumph(surface, screen_w, screen_h, period, is_present, can_interact, time_of_day):
+    if not is_present:
+        return
+    fx, fy_base = flumph_pos(screen_w, screen_h)
+
+    bob = int(math.sin(time_of_day * math.pi * 6) * 4)
+    x, y = fx, fy_base + bob
+
+    body_col = (160, 210, 230)
+    glow_col = (180, 230, 255, 50)
+    tent_col = (120, 170, 200)
+
+    # Glow aura
+    aura = pygame.Surface((56, 56), pygame.SRCALPHA)
+    pygame.draw.ellipse(aura, glow_col, (0, 0, 56, 46))
+    surface.blit(aura, (x - 28, y - 28))
+
+    # Cap (top dome)
+    pygame.draw.ellipse(surface, body_col, (x - 16, y - 16, 32, 22))
+    # Underside (flat)
+    pygame.draw.ellipse(surface, (100, 160, 185), (x - 14, y + 2, 28, 8))
+
+    # Tentacles
+    for i, ox in enumerate((-10, -4, 2, 8)):
+        length = 12 + (i % 2) * 4
+        pygame.draw.line(surface, tent_col, (x + ox, y + 6), (x + ox + (i - 1), y + 6 + length), 2)
+
+    # Eyes (two small lights)
+    pygame.draw.circle(surface, (230, 250, 255), (x - 4, y - 4), 2)
+    pygame.draw.circle(surface, (230, 250, 255), (x + 4, y - 4), 2)
+
+    if can_interact:
+        pygame.draw.circle(surface, (200, 180, 100), (x, y), 20, 1)
+
+
+# ------------------------------------------------------------------
+# Moss Wisp — glowing orb trailing green tendrils
+
+def moss_wisp_pos(screen_w, screen_h):
+    return (int(screen_w * 0.22), int(screen_h * 0.42))
+
+
+def moss_wisp_rect(screen_w, screen_h):
+    x, y = moss_wisp_pos(screen_w, screen_h)
+    return pygame.Rect(x - 16, y - 16, 32, 32)
+
+
+def draw_moss_wisp(surface, screen_w, screen_h, period, is_present, can_interact, time_of_day):
+    if not is_present:
+        return
+    wx, wy = moss_wisp_pos(screen_w, screen_h)
+
+    drift_x = int(math.sin(time_of_day * math.pi * 2.3) * 3)
+    drift_y = int(math.cos(time_of_day * math.pi * 1.7) * 3)
+    x = wx + drift_x
+    y = wy + drift_y
+
+    core_col = (160, 220, 120)
+    glow_col = (100, 180, 80, 40)
+    tend_col = (80, 150, 60)
+
+    # Outer glow
+    glow = pygame.Surface((60, 60), pygame.SRCALPHA)
+    pygame.draw.circle(glow, glow_col, (30, 30), 28)
+    surface.blit(glow, (x - 30, y - 30))
+
+    # Trailing tendrils (slow drift)
+    for i in range(4):
+        angle = time_of_day * math.pi * 1.2 + i * math.pi / 2
+        ex = int(x + math.cos(angle) * 14)
+        ey = int(y + math.sin(angle) * 14)
+        pygame.draw.line(surface, tend_col, (x, y), (ex, ey), 2)
+
+    # Core orb
+    pygame.draw.circle(surface, core_col, (x, y), 9)
+    pygame.draw.circle(surface, (220, 255, 190), (x - 2, y - 2), 4)
+
+    if can_interact:
+        pygame.draw.circle(surface, (200, 180, 100), (x, y), 18, 1)
+
+
+# ------------------------------------------------------------------
+# Pixie — tiny winged figure, glowing
+
+def pixie_pos(screen_w, screen_h):
+    return (int(screen_w * 0.88), int(screen_h * 0.40))
+
+
+def pixie_rect(screen_w, screen_h):
+    x, y = pixie_pos(screen_w, screen_h)
+    return pygame.Rect(x - 16, y - 18, 32, 32)
+
+
+def draw_pixie(surface, screen_w, screen_h, period, is_present, can_interact, time_of_day):
+    if not is_present:
+        return
+    px_base, py_base = pixie_pos(screen_w, screen_h)
+
+    flutter = int(math.sin(time_of_day * math.pi * 12) * 3)
+    x = px_base
+    y = py_base + flutter
+
+    skin   = (230, 200, 170)
+    hair   = (255, 230, 80)
+    wing   = (200, 240, 255, 120)
+    glow   = (255, 255, 180, 60)
+
+    # Glow
+    aura = pygame.Surface((40, 40), pygame.SRCALPHA)
+    pygame.draw.circle(aura, glow, (20, 20), 18)
+    surface.blit(aura, (x - 20, y - 20))
+
+    # Wings (dragonfly-style, translucent)
+    wl = pygame.Surface((28, 14), pygame.SRCALPHA)
+    pygame.draw.ellipse(wl, wing, (0, 0, 28, 14))
+    surface.blit(wl, (x - 26, y - 12))
+    wr = pygame.Surface((28, 14), pygame.SRCALPHA)
+    pygame.draw.ellipse(wr, wing, (0, 0, 28, 14))
+    surface.blit(wr, (x - 2, y - 12))
+
+    # Body
+    pygame.draw.ellipse(surface, skin, (x - 4, y - 8, 8, 12))
+    # Head
+    pygame.draw.circle(surface, skin, (x, y - 12), 5)
+    # Hair
+    pygame.draw.circle(surface, hair, (x, y - 16), 4)
+
+    if can_interact:
+        pygame.draw.circle(surface, (200, 180, 100), (x, y), 18, 1)
+
+
+# ------------------------------------------------------------------
+# Displacer Beast — large panther-like, slightly ghost-offset
+
+def displacer_beast_pos(screen_w, screen_h):
+    return (int(screen_w * 0.72), int(screen_h * 0.68))
+
+
+def displacer_beast_rect(screen_w, screen_h):
+    x, y = displacer_beast_pos(screen_w, screen_h)
+    return pygame.Rect(x - 30, y - 22, 60, 38)
+
+
+def draw_displacer_beast(surface, screen_w, screen_h, period, is_present, can_interact, time_of_day):
+    if not is_present:
+        return
+    x, y = displacer_beast_pos(screen_w, screen_h)
+
+    fur    = (50, 35, 65)
+    dark   = (30, 20, 45)
+    eye    = (80, 200, 120)
+    tent   = (60, 40, 80)
+
+    # Ghost offset (displacement illusion)
+    ghost = pygame.Surface((80, 50), pygame.SRCALPHA)
+    pygame.draw.ellipse(ghost, (80, 60, 100, 40), (6, 10, 60, 26))
+    pygame.draw.circle(ghost, (80, 60, 100, 40), (62, 12), 14)
+    surface.blit(ghost, (x - 46, y - 26))
+
+    # Real body
+    pygame.draw.ellipse(surface, fur, (x - 26, y - 12, 52, 22))
+    # Head
+    pygame.draw.circle(surface, fur,  (x + 26, y - 10), 14)
+    pygame.draw.circle(surface, dark, (x + 26, y - 10), 14, 1)
+    # Ears
+    pygame.draw.polygon(surface, dark, [(x + 18, y - 20), (x + 22, y - 28), (x + 26, y - 20)])
+    pygame.draw.polygon(surface, dark, [(x + 28, y - 20), (x + 32, y - 28), (x + 34, y - 20)])
+    # Eyes (bright)
+    pygame.draw.circle(surface, eye, (x + 22, y - 12), 3)
+    pygame.draw.circle(surface, eye, (x + 30, y - 12), 3)
+    # Tentacles (two from shoulders)
+    pygame.draw.line(surface, tent, (x - 10, y - 10), (x - 18, y - 28), 3)
+    pygame.draw.line(surface, tent, (x - 18, y - 28), (x - 14, y - 38), 2)
+    pygame.draw.line(surface, tent, (x + 4,  y - 10), (x + 10, y - 28), 3)
+    pygame.draw.line(surface, tent, (x + 10, y - 28), (x + 6,  y - 38), 2)
+    # Legs
+    for lx in (x - 18, x - 6, x + 6, x + 14):
+        pygame.draw.line(surface, dark, (lx, y + 8), (lx, y + 18), 3)
+    # Tail
+    pygame.draw.line(surface, fur, (x - 26, y), (x - 38, y - 10), 3)
+
+    if can_interact:
+        pygame.draw.circle(surface, (200, 180, 100), (x, y), 30, 1)
+
+
+# ------------------------------------------------------------------
 # Dialogue bubble
 
 def draw_dialogue(surface, font, text, anchor_x, anchor_y):
@@ -357,6 +650,102 @@ def draw_action_panel(surface, font, screen_w, screen_h, actions):
         surface.blit(lbl,  (bx + 8,           by + (btn_h - lbl.get_height()) // 2))
         surface.blit(hint, (bx + btn_w - hint.get_width() - 6,
                             by + (btn_h - hint.get_height()) // 2))
+
+
+# ------------------------------------------------------------------
+# Areas restoration panel
+
+_AREA_DISPLAY_NAMES = {
+    "heartstone":       "The Heartstone",
+    "thicket":          "The Thicket",
+    "canopy":           "The Canopy",
+    "feywild_boundary": "The Feywild Boundary",
+    "oldwood":          "The Oldwood",
+}
+
+_AP_ROW_H   = 50
+_AP_PAD     = 14
+_AP_W       = 410
+_AP_TITLE_H = 36
+_AP_HINT_H  = 24
+
+
+def draw_areas_panel(surface, font, font_sm, areas, resources, screen_w, screen_h):
+    """
+    Draw the grove restoration panel.
+    Returns {area_name: rect} for clickable (next-unlockable) rows.
+    """
+    n       = len(areas.ALL)
+    panel_h = _AP_TITLE_H + n * _AP_ROW_H + _AP_HINT_H + _AP_PAD * 2
+    px      = (screen_w - _AP_W) // 2
+    py      = (screen_h - panel_h) // 2
+
+    # Dim scene behind panel
+    dim = pygame.Surface((screen_w, screen_h), pygame.SRCALPHA)
+    dim.fill((0, 0, 0, 150))
+    surface.blit(dim, (0, 0))
+
+    # Panel background
+    bg = pygame.Surface((_AP_W, panel_h), pygame.SRCALPHA)
+    bg.fill((12, 20, 12, 235))
+    surface.blit(bg, (px, py))
+    pygame.draw.rect(surface, (70, 100, 60), (px, py, _AP_W, panel_h), 1)
+
+    title = font.render("Grove Restoration", True, (190, 220, 165))
+    surface.blit(title, (px + _AP_PAD, py + _AP_PAD))
+
+    next_name = areas.next_to_unlock()
+    clickable = {}
+
+    for i, name in enumerate(areas.ALL):
+        ry        = py + _AP_PAD + _AP_TITLE_H + i * _AP_ROW_H
+        row_rect  = pygame.Rect(px + _AP_PAD, ry, _AP_W - _AP_PAD * 2, _AP_ROW_H - 6)
+        unlocked  = areas.is_unlocked(name)
+        is_next   = name == next_name
+        affordable = is_next and areas.can_afford(name, resources)
+
+        if is_next:
+            bg_col     = (25, 45, 20) if affordable else (35, 28, 12)
+            border_col = (100, 150, 80) if affordable else (120, 100, 40)
+            pygame.draw.rect(surface, bg_col,     row_rect, border_radius=3)
+            pygame.draw.rect(surface, border_col, row_rect, 1, border_radius=3)
+            clickable[name] = row_rect
+
+        # Area name
+        if unlocked:
+            name_col = (155, 200, 130)
+        elif is_next:
+            name_col = (215, 205, 150) if affordable else (185, 168, 105)
+        else:
+            name_col = (72, 82, 68)
+
+        display = _AREA_DISPLAY_NAMES.get(name, name.replace("_", " ").title())
+        surface.blit(font.render(display, True, name_col), (row_rect.x + 8, ry + 7))
+
+        # Right-side status / cost
+        if unlocked:
+            st = font_sm.render("Active", True, (105, 170, 90))
+            surface.blit(st, (row_rect.right - st.get_width() - 8, ry + 11))
+        else:
+            cost     = areas.unlock_cost(name)
+            cost_str = "  +  ".join(f"{int(v)} {k}" for k, v in cost.items())
+            if affordable:
+                cost_col = (170, 190, 120)
+            elif is_next:
+                cost_col = (145, 130, 75)
+            else:
+                cost_col = (52, 60, 48)
+            ct = font_sm.render(cost_str, True, cost_col)
+            surface.blit(ct, (row_rect.right - ct.get_width() - 8, ry + 11))
+            if is_next and affordable:
+                ht = font_sm.render("click to restore", True, (90, 140, 70))
+                surface.blit(ht, (row_rect.x + 8, ry + 28))
+
+    # Close hint
+    ch = font_sm.render("[R]  close", True, (62, 82, 55))
+    surface.blit(ch, (px + (_AP_W - ch.get_width()) // 2, py + panel_h - _AP_HINT_H))
+
+    return clickable
 
 
 # ------------------------------------------------------------------
@@ -459,14 +848,34 @@ def draw_scene(surface, period, time_of_day, screen_w, screen_h,
     draw_druid(surface, period, screen_w, screen_h)
 
     if creatures:
-        stirge    = creatures.get("stirge")
-        blink_dog = creatures.get("blink_dog")
-        if stirge:
-            draw_stirge(surface, screen_w, screen_h, period,
-                        stirge.is_present, stirge.can_interact)
-        if blink_dog:
-            draw_blink_dog(surface, screen_w, screen_h, period,
-                           blink_dog.is_present, blink_dog.can_interact,
-                           time_of_day)
+        for name in ("stirge", "blink_dog", "owlbear", "pseudodragon",
+                     "flumph", "moss_wisp", "pixie", "displacer_beast"):
+            c = creatures.get(name)
+            if not c:
+                continue
+            if name == "stirge":
+                draw_stirge(surface, screen_w, screen_h, period,
+                            c.is_present, c.can_interact)
+            elif name == "blink_dog":
+                draw_blink_dog(surface, screen_w, screen_h, period,
+                               c.is_present, c.can_interact, time_of_day)
+            elif name == "owlbear":
+                draw_owlbear(surface, screen_w, screen_h, period,
+                             c.is_present, c.can_interact)
+            elif name == "pseudodragon":
+                draw_pseudodragon(surface, screen_w, screen_h, period,
+                                  c.is_present, c.can_interact)
+            elif name == "flumph":
+                draw_flumph(surface, screen_w, screen_h, period,
+                            c.is_present, c.can_interact, time_of_day)
+            elif name == "moss_wisp":
+                draw_moss_wisp(surface, screen_w, screen_h, period,
+                               c.is_present, c.can_interact, time_of_day)
+            elif name == "pixie":
+                draw_pixie(surface, screen_w, screen_h, period,
+                           c.is_present, c.can_interact, time_of_day)
+            elif name == "displacer_beast":
+                draw_displacer_beast(surface, screen_w, screen_h, period,
+                                     c.is_present, c.can_interact, time_of_day)
 
     draw_motes(surface, period, time_of_day, screen_w, screen_h)
