@@ -125,15 +125,6 @@ made that future sessions need to know about.*
 - **Decisions:** protection decays in real time (not game time) so dev speed mode doesn't drain it faster; glamour is now purely a resource that accumulates and is spent; "Shield" is the current HUD label for protection, flagged for renaming in Phase 5
 - **Next:** area unlock mechanic (UI + spending resources to restore areas)
 
-### Session 7 — [06.06.2026]
-**Phase 3 complete.**
-- `game/dialogue.py` — dialogue pools for all 6 new creatures (OWLBEAR, PSEUDODRAGON, FLUMPH, MOSS_WISP, PIXIE, DISPLACER_BEAST): 5 lines per bond level 0–3, 5 feed lines each, MILESTONES entries for all 8 creatures; Joanna edited several lines for tone
-- `game/renderer.py` — coded placeholder visuals for all 6 new creatures (owlbear, pseudodragon, flumph, moss_wisp, pixie, displacer_beast): each has `*_pos()`, `*_rect()`, `draw_*()` functions; flumph/moss_wisp/pixie/displacer_beast are time-of-day animated; draw_scene updated to draw all 8 creatures via loop
-- `main.py` — data-driven `_CREATURE_REGISTRY` list replaces explicit per-creature click handling; all 8 creatures wired for click detection, action menu, and dialogue bubble rendering; all 8 creature pos/rect functions imported
-- `config.json` — creature configs for all 6 new creatures already in place (from Session 6 planning)
-- **Decisions:** creature perks deferred — most are event-system dependent (Phase 4); blink dog scouting was inferred from flavour text, not specced; moss wisp gen boost also deferred to Phase 4; floating dialogue bubbles remain for now, to be replaced by bottom text box as first step of Phase 4
-- **Next:** Phase 4 — bottom text box UI first (replaces bubbles + sidebar flash), then event system
-
 ### Session 6 — [06.06.2026]
 **Phase 3 step 1: Feeding mechanic + creature action menu.**
 - `game/renderer.py` — `draw_action_menu()` and `action_menu_item_rects()`: reusable popup menu anchored above a creature with hover highlight, greyed-out unavailable options, cost detail right-aligned, tail pointing toward creature; foundation for Phase 4 event dialogue choices
@@ -143,3 +134,19 @@ made that future sessions need to know about.*
 - `config.json` — `feeding` block per creature: `feeds_per_day`, `forage_cost`, `bond_xp_per_feed`, `cooldown_real_seconds`
 - **Decisions:** feeding is a separate mechanic from interact (daily cap + per-feed cooldown, not interact cooldown); interact cooldown is purely real-time and does not reset at day boundaries; level-up milestone text takes priority over feed/interact line when both fire simultaneously; feed option shows cost in menu detail; feed greyed when on cooldown OR daily limit reached OR insufficient forage
 - **Next:** area unlock UI (panel showing locked areas, costs, spend resources to restore)
+
+### Session 8 — [06.06.2026]
+**Phase 3 cleanup: bottom text box UI.**
+- `game/renderer.py` — `draw_text_box()`: fixed bottom panel (100px, full-width), two modes — options (creature name + Interact/Feed list with hover highlight) and text (speaker label + wrapped dialogue, auto-expires or dismiss); `text_box_item_rects()`: pure rect helper for hover/click detection; `draw_center_flash()`: small centred semi-transparent panel for transient messages; `draw_action_panel()` gains `bottom` parameter to anchor above text box
+- `main.py` — `text_box` state dict replaces `action_menu` + `flash_text`/`flash_ttl`; `_grove_text()` and `_creature_text()` helpers reduce boilerplate; creature clicks open options mode in text box; interact/feed switch box to text mode; grove messages (forage, tend, area restored) go to text box with "The Grove" label; errors and "Saved." go to `draw_center_flash`; `render_keybinds()` gains `right_align` flag; keybinds moved to top-right below player name; `draw_action_menu` / `action_menu_item_rects` / `draw_dialogue` removed from call sites (kept in renderer.py for Phase 4 reuse)
+- **Decisions:** text box dismisses on ESC, click outside (options), any click (text), or TTL expiry; floating dialogue bubbles fully removed; `draw_action_menu` retained in renderer.py as Phase 4 foundation for event dialogue choices; creature perks and event system deferred to Phase 4
+- **Next:** Phase 4 — creature event system, grove events, visitor cameo arcs
+
+### Session 7 — [06.06.2026]
+**Phase 3 complete.**
+- `game/dialogue.py` — dialogue pools for all 6 new creatures (OWLBEAR, PSEUDODRAGON, FLUMPH, MOSS_WISP, PIXIE, DISPLACER_BEAST): 5 lines per bond level 0–3, 5 feed lines each, MILESTONES entries for all 8 creatures; Joanna edited several lines for tone
+- `game/renderer.py` — coded placeholder visuals for all 6 new creatures (owlbear, pseudodragon, flumph, moss_wisp, pixie, displacer_beast): each has `*_pos()`, `*_rect()`, `draw_*()` functions; flumph/moss_wisp/pixie/displacer_beast are time-of-day animated; draw_scene updated to draw all 8 creatures via loop
+- `main.py` — data-driven `_CREATURE_REGISTRY` list replaces explicit per-creature click handling; all 8 creatures wired for click detection, action menu, and dialogue bubble rendering; all 8 creature pos/rect functions imported
+- `config.json` — creature configs for all 6 new creatures already in place (from Session 6 planning)
+- **Decisions:** creature perks deferred — most are event-system dependent (Phase 4); blink dog scouting was inferred from flavour text, not specced; moss wisp gen boost also deferred to Phase 4; floating dialogue bubbles remain for now, to be replaced by bottom text box as first step of Phase 4
+- **Next:** Phase 4 — bottom text box UI first (replaces bubbles + sidebar flash), then event system

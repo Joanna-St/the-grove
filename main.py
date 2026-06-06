@@ -14,8 +14,8 @@ from game.events import Events
 from game import save_load
 from game import dialogue as dlg
 from game.renderer import (
-    draw_scene, draw_dialogue, draw_action_panel,
-    draw_action_menu, action_menu_item_rects,
+    draw_scene, draw_action_panel,
+    draw_text_box, draw_center_flash, text_box_item_rects,
     draw_areas_panel,
     stirge_rect, stirge_pos,
     blink_dog_rect, blink_dog_pos,
@@ -146,10 +146,11 @@ def render_flash(surface, font_sm, text, x, y, alpha):
     surface.blit(msg, (x, y))
 
 
-def render_keybinds(surface, font_sm, x, y):
+def render_keybinds(surface, font_sm, x, y, right_align=False):
     for i, line in enumerate(["[S] Save", "[D] Dev speed", "[R] Restore areas", "[ESC] Quit"]):
         t = font_sm.render(line, True, DIM)
-        surface.blit(t, (x, y + i * 18))
+        blit_x = x - t.get_width() if right_align else x
+        surface.blit(t, (blit_x, y + i * 18))
 
 
 def render_bond_status(surface, font_sm, creatures, x, y):
@@ -225,14 +226,15 @@ def main():
     forage_cd_max    = action_cfg["forage"]["cooldown_real_seconds"]
     tend_cd_max      = action_cfg["tend_statue"]["cooldown_real_seconds"]
 
-    action_menu       = None   # None or {"creature": c, "pool": pool, "anchor": (x,y), "hover": int}
+    text_box          = None   # {"mode":"options"|"text","speaker":str,"text":str,
+                               #  "creature":c|None,"pool":...,"feed_pool":...,"ttl":float,"hover":int}
     show_areas_panel  = False
     areas_clickable   = {}     # {area_name: rect}, rebuilt each frame when panel is open
 
-    autosave_interval = config["autosave_interval_seconds"]
-    last_autosave     = time.time()
-    flash_text        = ""
-    flash_ttl         = 0.0
+    autosave_interval   = config["autosave_interval_seconds"]
+    last_autosave       = time.time()
+    center_flash_text   = ""
+    center_flash_ttl    = 0.0
 
     # Data-driven creature registry — drives click detection and dialogue routing
     _CREATURE_REGISTRY = [
@@ -256,6 +258,18 @@ def main():
 
     st_rect = statue_rect(game_w, game_h)
 
+    def _grove_text(text, ttl=4.0):
+        return {"mode": "text", "speaker": "The Grove", "text": text,
+                "creature": None, "pool": None, "feed_pool": None,
+                "ttl": ttl, "hover": -1}
+
+    def _creature_text(creature):
+        return {"mode": "text",
+                "speaker": creature.name.replace("_", " ").title(),
+                "text": creature.dialogue_text,
+                "creature": None, "pool": None, "feed_pool": None,
+                "ttl": creature.dialogue_ttl, "hover": -1}
+
     running = True
     while running:
         dt_real = clock.tick(win_cfg["fps"]) / 1000.0
@@ -266,26 +280,26 @@ def main():
                 running = False
 
             elif event.type == pygame.MOUSEMOTION:
-                if action_menu:
+                if text_box and text_box["mode"] == "options":
                     mx, my = event.pos
                     gx, gy = mx - blit_x, my - blit_y
-                    opts  = _creature_menu_options(action_menu["creature"], resources, config)
-                    rects = action_menu_item_rects(
-                        *action_menu["anchor"], len(opts), game_w, game_h)
-                    action_menu["hover"] = next(
+                    opts  = _creature_menu_options(text_box["creature"], resources, config)
+                    rects = text_box_item_rects(
+                        font_sm, text_box["speaker"], len(opts), game_w, game_h)
+                    text_box["hover"] = next(
                         (i for i, r in enumerate(rects) if r.collidepoint(gx, gy)), -1)
 
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     if show_areas_panel:
                         show_areas_panel = False
-                    elif action_menu:
-                        action_menu = None
+                    elif text_box:
+                        text_box = None
                     else:
                         running = False
                 elif event.key == pygame.K_s:
                     save_load.save_game(time_sys, resources, areas, creatures, player_name)
-                    flash_text, flash_ttl = "Saved.", 2.5
+                    center_flash_text, center_flash_ttl = "Saved.", 2.5
                 elif event.key == pygame.K_r:
                     show_areas_panel = not show_areas_panel
                     if show_areas_panel:
@@ -299,20 +313,18 @@ def main():
                         resources.add("heartwood", fc["heartwood_yield"])
                         if random.random() < fc["glamour_chance"]:
                             resources.add("glamour", fc["glamour_yield"])
-                        forage_cd  = forage_cd_max
-                        flash_text = dlg.pick(dlg.FORAGE)
-                        flash_ttl  = 4.0
+                        forage_cd = forage_cd_max
+                        text_box  = _grove_text(dlg.pick(dlg.FORAGE), 4.0)
                 elif event.key == pygame.K_t:
                     tc = action_cfg["tend_statue"]
                     if tend_cd <= 0 and resources.glamour >= tc["glamour_cost"]:
                         resources.add("glamour",    -tc["glamour_cost"])
                         resources.add("protection",  tc["protection_restore"])
-                        tend_cd    = tend_cd_max
-                        flash_text = dlg.pick(dlg.TEND_STATUE)
-                        flash_ttl  = 4.0
+                        tend_cd  = tend_cd_max
+                        text_box = _grove_text(dlg.pick(dlg.TEND_STATUE), 4.0)
                     elif tend_cd <= 0:
-                        flash_text = "Not enough glamour to tend the statue."
-                        flash_ttl  = 3.0
+                        center_flash_text = "Not enough glamour to tend the statue."
+                        center_flash_ttl  = 3.0
 
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 # Translate screen click → game_surf coordinates
@@ -326,39 +338,37 @@ def main():
                                 for res, amount in areas.unlock_cost(area_name).items():
                                     resources.add(res, -amount)
                                 areas.unlock(area_name, time_sys.game_seconds)
-                                flash_text = dlg.AREA_RESTORED.get(
-                                    area_name,
-                                    f"The {area_name.replace('_', ' ').title()} has been restored."
-                                )
-                                flash_ttl        = 5.0
+                                msg      = dlg.AREA_RESTORED.get(area_name,
+                                    f"The {area_name.replace('_',' ').title()} has been restored.")
+                                text_box         = _grove_text(msg, 5.0)
                                 show_areas_panel = False
                             else:
-                                flash_text = "Not enough resources."
-                                flash_ttl  = 3.0
+                                center_flash_text = "Not enough resources."
+                                center_flash_ttl  = 3.0
                             break
 
-                elif action_menu:
-                    # Menu open: check items, then close regardless
-                    creature = action_menu["creature"]
+                elif text_box and text_box["mode"] == "options":
+                    creature = text_box["creature"]
                     opts  = _creature_menu_options(creature, resources, config)
-                    rects = action_menu_item_rects(
-                        *action_menu["anchor"], len(opts), game_w, game_h)
+                    rects = text_box_item_rects(
+                        font_sm, text_box["speaker"], len(opts), game_w, game_h)
+                    acted = False
                     for r, (label, _, available) in zip(rects, opts):
                         if r.collidepoint(gx, gy) and available:
                             if label == "Interact":
-                                levelled = creature.interact(action_menu["pool"])
-                                if levelled:
-                                    flash_text = creature.dialogue_text
-                                    flash_ttl  = 5.0
+                                creature.interact(text_box["pool"])
                             elif label == "Feed":
                                 feed_cfg = config["creatures"].get(creature.name, {}).get("feeding", {})
                                 resources.add("forage", -feed_cfg["forage_cost"])
-                                levelled = creature.feed(action_menu["feed_pool"])
-                                if levelled:
-                                    flash_text = creature.dialogue_text
-                                    flash_ttl  = 5.0
+                                creature.feed(text_box["feed_pool"])
+                            text_box = _creature_text(creature)
+                            acted = True
                             break
-                    action_menu = None
+                    if not acted:
+                        text_box = None   # click outside options → dismiss
+
+                elif text_box and text_box["mode"] == "text":
+                    text_box = None   # any click dismisses text
 
                 else:
                     # Check creature clicks (data-driven)
@@ -366,11 +376,14 @@ def main():
                     for entry in _CREATURE_REGISTRY:
                         c = creatures.get(entry["name"])
                         if c and c.is_present and entry["rect_fn"](game_w, game_h).collidepoint(gx, gy):
-                            action_menu = {
+                            text_box = {
+                                "mode":      "options",
+                                "speaker":   c.name.replace("_", " ").title(),
+                                "text":      "",
                                 "creature":  c,
                                 "pool":      entry["pool"],
                                 "feed_pool": entry["feed_pool"],
-                                "anchor":    entry["pos_fn"](game_w, game_h),
+                                "ttl":       0.0,
                                 "hover":     -1,
                             }
                             clicked_creature = True
@@ -381,12 +394,11 @@ def main():
                         if resources.glamour >= tc["glamour_cost"]:
                             resources.add("glamour",    -tc["glamour_cost"])
                             resources.add("protection",  tc["protection_restore"])
-                            tend_cd    = tend_cd_max
-                            flash_text = dlg.pick(dlg.TEND_STATUE)
-                            flash_ttl  = 4.0
+                            tend_cd  = tend_cd_max
+                            text_box = _grove_text(dlg.pick(dlg.TEND_STATUE), 4.0)
                         else:
-                            flash_text = "Not enough glamour to tend the statue."
-                            flash_ttl  = 3.0
+                            center_flash_text = "Not enough glamour to tend the statue."
+                            center_flash_ttl  = 3.0
 
         # ---- Update ----
         time_sys.update(dt_real)
@@ -399,8 +411,16 @@ def main():
 
         if forage_cd > 0: forage_cd -= dt_real
         if tend_cd   > 0: tend_cd   -= dt_real
-        if flash_ttl > 0: flash_ttl -= dt_real
-        else:             flash_text  = ""
+
+        if center_flash_ttl > 0:
+            center_flash_ttl -= dt_real
+        else:
+            center_flash_text = ""
+
+        if text_box and text_box["mode"] == "text":
+            text_box["ttl"] -= dt_real
+            if text_box["ttl"] <= 0:
+                text_box = None
 
         now = time.time()
         if now - last_autosave >= autosave_interval:
@@ -428,50 +448,39 @@ def main():
         bond_y = 232
         render_bond_status(game_surf, font_sm, creatures, 20, bond_y)
 
-        # Dev badge and flash sit below the last bond line, however many there are
+        # Dev badge sits below the last bond line
         bond_end_y = bond_y + max(len(creatures.present()), 1) * 18
-
         if time_sys.dev_speed:
             render_dev_badge(game_surf, font_sm, 20, bond_end_y + 6)
-            flash_base_y = bond_end_y + 26
-        else:
-            flash_base_y = bond_end_y + 6
 
-        # Flash message (event text / save confirmation)
-        if flash_ttl > 0:
-            alpha = int(255 * min(1.0, flash_ttl))
-            render_flash(game_surf, font_sm, flash_text, 20, flash_base_y, alpha)
-
-        # Creature dialogue bubbles (data-driven)
-        for entry in _CREATURE_REGISTRY:
-            c = creatures.get(entry["name"])
-            if c and c.dialogue_text and c.dialogue_ttl > 0:
-                cx, cy = entry["pos_fn"](game_w, game_h)
-                draw_dialogue(game_surf, font_sm, c.dialogue_text, cx, cy - 18)
-
-        # Areas restoration panel (drawn over scene, under nothing)
+        # Areas restoration panel
         if show_areas_panel:
             areas_clickable = draw_areas_panel(
                 game_surf, font, font_sm, areas, resources, game_w, game_h)
 
-        # Creature action menu
-        if action_menu:
-            creature = action_menu["creature"]
-            opts = _creature_menu_options(creature, resources, config)
-            draw_action_menu(game_surf, font_sm, opts,
-                             *action_menu["anchor"], game_w, game_h,
-                             action_menu["hover"])
+        # Bottom text box (creature options / dialogue / grove messages)
+        if text_box:
+            opts = (_creature_menu_options(text_box["creature"], resources, config)
+                    if text_box["mode"] == "options" else [])
+            draw_text_box(game_surf, font, font_sm,
+                          text_box["speaker"], text_box["text"],
+                          opts, text_box["hover"], game_w, game_h)
 
-        # Action panel
+        # Centre flash (errors, save confirmation)
+        if center_flash_ttl > 0:
+            alpha = int(255 * min(1.0, center_flash_ttl))
+            draw_center_flash(game_surf, font_sm, center_flash_text, alpha, game_w, game_h)
+
+        # Action panel — anchored above the text box
         forage_avail = forage_cd <= 0
         tend_avail   = tend_cd   <= 0
         draw_action_panel(game_surf, font_sm, game_w, game_h, [
             ("Forage",       "[F]", forage_cd / forage_cd_max if forage_cd > 0 else 0.0, forage_avail),
             ("Tend Statue",  "[T]", tend_cd   / tend_cd_max   if tend_cd   > 0 else 0.0, tend_avail),
-        ])
+        ], bottom=game_h - 120 - 12)
 
-        # Keybinds
-        render_keybinds(game_surf, font_sm, 20, game_h - 78)
+        # Keybinds — top-right, below player name
+        render_keybinds(game_surf, font_sm, game_w - 14, 36, right_align=True)
 
         if fullscreen:
             screen.fill((0, 0, 0))

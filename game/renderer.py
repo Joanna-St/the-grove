@@ -608,10 +608,11 @@ def draw_dialogue(surface, font, text, anchor_x, anchor_y):
 # ------------------------------------------------------------------
 # Action panel (bottom-right)
 
-def draw_action_panel(surface, font, screen_w, screen_h, actions):
+def draw_action_panel(surface, font, screen_w, screen_h, actions, bottom=None):
     """
     actions: list of (label, key_hint, cooldown_fraction, available)
     cooldown_fraction: 0.0 = ready, 1.0 = just used
+    bottom: y coordinate for panel's bottom edge (defaults to screen_h - 12)
     """
     pad    = 8
     btn_w  = 160
@@ -620,8 +621,9 @@ def draw_action_panel(surface, font, screen_w, screen_h, actions):
     total_h = len(actions) * (btn_h + gap) - gap + pad * 2
     total_w = btn_w + pad * 2
 
+    panel_bottom = (bottom if bottom is not None else screen_h - 12)
     panel_x = screen_w - total_w - 12
-    panel_y = screen_h - total_h - 12
+    panel_y = panel_bottom - total_h
 
     bg = pygame.Surface((total_w, total_h), pygame.SRCALPHA)
     bg.fill((15, 20, 15, 180))
@@ -813,6 +815,127 @@ def draw_action_menu(surface, font, options, anchor_x, anchor_y,
                         [(tx - 5, ty), (tx + 5, ty), (tx, ty + 9)])
     pygame.draw.line(surface, (70, 100, 60), (tx - 5, ty), (tx, ty + 9))
     pygame.draw.line(surface, (70, 100, 60), (tx + 5, ty), (tx, ty + 9))
+
+
+# ------------------------------------------------------------------
+# Bottom text box (creature options + dialogue + grove messages)
+
+_TB_H      = 100
+_TB_PAD    = 10
+_TB_MARGIN = 20
+
+
+def draw_text_box(surface, font, font_sm, speaker, text, options,
+                  hover_idx, screen_w, screen_h):
+    """
+    Fixed bottom panel. Two modes:
+      options mode — options is a non-empty list of (label, detail, available);
+                     returns item rects for click detection.
+      text mode    — text is a string, options is None or [];
+                     returns [].
+    Only call when there is content to show.
+    """
+    bx = _TB_MARGIN
+    by = screen_h - _TB_H - _TB_MARGIN
+    bw = screen_w - _TB_MARGIN * 2
+
+    bg = pygame.Surface((bw, _TB_H), pygame.SRCALPHA)
+    bg.fill((10, 18, 10, 220))
+    surface.blit(bg, (bx, by))
+    pygame.draw.rect(surface, (70, 100, 60), (bx, by, bw, _TB_H), 1)
+
+    # Speaker label
+    label_h = 0
+    if speaker:
+        sp = font_sm.render(speaker, True, (130, 180, 110))
+        surface.blit(sp, (bx + _TB_PAD, by + _TB_PAD))
+        label_h = font_sm.get_linesize() + 4
+
+    content_y = by + _TB_PAD + label_h
+    item_rects = []
+
+    if options:
+        item_h = 22
+        for i, (label, detail, available) in enumerate(options):
+            ry = content_y + i * item_h
+            r  = pygame.Rect(bx + _TB_PAD, ry, bw - _TB_PAD * 2, item_h)
+            item_rects.append(r)
+
+            if i == hover_idx and available:
+                pygame.draw.rect(surface, (30, 50, 25), r)
+
+            col  = (200, 220, 180) if available else (90, 100, 85)
+            dcol = (140, 160, 120) if available else (70, 80, 65)
+
+            surface.blit(font_sm.render(label, True, col), (r.x + 6, ry + 4))
+            if detail:
+                dtxt = font_sm.render(detail, True, dcol)
+                surface.blit(dtxt, (r.right - dtxt.get_width() - 6, ry + 4))
+
+    else:
+        if text:
+            words    = text.split()
+            lines, line = [], []
+            max_w    = bw - _TB_PAD * 2
+            for w in words:
+                line.append(w)
+                if font.size(" ".join(line))[0] > max_w:
+                    lines.append(" ".join(line[:-1]))
+                    line = [w]
+            if line:
+                lines.append(" ".join(line))
+
+            lh = font.get_linesize()
+            for i, ln in enumerate(lines[:3]):
+                t = font.render(ln, True, (210, 225, 200))
+                surface.blit(t, (bx + _TB_PAD, content_y + i * lh))
+
+        hint = font_sm.render("[ESC] dismiss", True, (60, 85, 50))
+        surface.blit(hint, (bx + bw - hint.get_width() - _TB_PAD,
+                            by + _TB_H - font_sm.get_linesize() - 4))
+
+    return item_rects
+
+
+def text_box_item_rects(font_sm, speaker, n_options, screen_w, screen_h):
+    """Returns option rects for text box options mode without drawing."""
+    bx        = _TB_MARGIN
+    by        = screen_h - _TB_H - _TB_MARGIN
+    bw        = screen_w - _TB_MARGIN * 2
+    label_h   = (font_sm.get_linesize() + 4) if speaker else 0
+    content_y = by + _TB_PAD + label_h
+    return [
+        pygame.Rect(bx + _TB_PAD, content_y + i * 22, bw - _TB_PAD * 2, 22)
+        for i in range(n_options)
+    ]
+
+
+# ------------------------------------------------------------------
+# Centre flash (errors, save confirmation)
+
+def draw_center_flash(surface, font_sm, text, alpha, screen_w, screen_h):
+    """Small semi-transparent panel centred on screen. Alpha 0–255."""
+    if not text or alpha <= 0:
+        return
+    t  = font_sm.render(text, True, (215, 230, 205))
+    tw = t.get_width()
+    th = t.get_height()
+    pad = 10
+    bw  = tw + pad * 2
+    bh  = th + pad * 2
+    bx  = (screen_w - bw) // 2
+    by  = screen_h // 2 - bh - 20   # slightly above centre
+
+    bg = pygame.Surface((bw, bh), pygame.SRCALPHA)
+    bg.fill((10, 18, 10, min(200, alpha)))
+    surface.blit(bg, (bx, by))
+
+    border = pygame.Surface((bw, bh), pygame.SRCALPHA)
+    pygame.draw.rect(border, (70, 100, 60, min(255, alpha)), (0, 0, bw, bh), 1)
+    surface.blit(border, (bx, by))
+
+    t.set_alpha(alpha)
+    surface.blit(t, (bx + pad, by + pad))
 
 
 # ------------------------------------------------------------------
