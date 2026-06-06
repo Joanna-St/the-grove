@@ -15,6 +15,7 @@ from game import save_load
 from game import dialogue as dlg
 from game.renderer import (
     draw_scene, draw_dialogue, draw_action_panel,
+    draw_action_menu, action_menu_item_rects,
     stirge_rect, blink_dog_rect, statue_rect,
     stirge_pos, blink_dog_pos,
 )
@@ -145,12 +146,25 @@ def render_keybinds(surface, font_sm, x, y):
 
 def render_bond_status(surface, font_sm, creatures, x, y):
     for i, c in enumerate(creatures.present()):
-        label   = c.name.replace("_", " ").title()
-        bond    = "[" + "*" * c.bond_level + "-" * (3 - c.bond_level) + "]"
+        label    = c.name.replace("_", " ").title()
+        bond     = "[" + "*" * c.bond_level + "-" * (3 - c.bond_level) + "]"
         flashing = c.bond_flash_ttl > 0
-        colour  = (240, 230, 130) if flashing else (170, 195, 150)
-        text    = font_sm.render(f"{label}  {bond}", True, colour)
+        colour   = (240, 230, 130) if flashing else (170, 195, 150)
+        text     = font_sm.render(f"{label}  {bond}  {c.feed_indicator}", True, colour)
         surface.blit(text, (x, y + i * 18))
+
+
+# ------------------------------------------------------------------
+# Creature menu helpers
+
+def _creature_menu_options(creature, resources, config):
+    feed_cfg  = config["creatures"].get(creature.name, {}).get("feeding", {})
+    feed_cost = feed_cfg.get("forage_cost", 3)
+    can_feed  = creature.can_feed and resources.forage >= feed_cost
+    return [
+        ("Interact", "",                   creature.can_interact),
+        ("Feed",     f"-{feed_cost:.0f} forage", can_feed),
+    ]
 
 
 # ------------------------------------------------------------------
@@ -203,6 +217,8 @@ def main():
     forage_cd_max    = action_cfg["forage"]["cooldown_real_seconds"]
     tend_cd_max      = action_cfg["tend_statue"]["cooldown_real_seconds"]
 
+    action_menu = None  # None or {"creature": c, "pool": pool, "anchor": (x,y), "hover": int}
+
     autosave_interval = config["autosave_interval_seconds"]
     last_autosave     = time.time()
     flash_text        = ""
@@ -222,9 +238,22 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
 
+            elif event.type == pygame.MOUSEMOTION:
+                if action_menu:
+                    mx, my = event.pos
+                    gx, gy = mx - blit_x, my - blit_y
+                    opts  = _creature_menu_options(action_menu["creature"], resources, config)
+                    rects = action_menu_item_rects(
+                        *action_menu["anchor"], len(opts), game_w, game_h)
+                    action_menu["hover"] = next(
+                        (i for i, r in enumerate(rects) if r.collidepoint(gx, gy)), -1)
+
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    running = False
+                    if action_menu:
+                        action_menu = None
+                    else:
+                        running = False
                 elif event.key == pygame.K_s:
                     save_load.save_game(time_sys, resources, areas, creatures, player_name)
                     flash_text, flash_ttl = "Saved.", 2.5
@@ -260,17 +289,46 @@ def main():
                 stirge    = creatures.get("stirge")
                 blink_dog = creatures.get("blink_dog")
 
-                if stirge and s_rect.collidepoint(gx, gy) and stirge.can_interact:
-                    levelled = stirge.interact(dlg.STIRGE)
-                    if levelled:
-                        flash_text = stirge.dialogue_text
-                        flash_ttl  = 5.0
+                if action_menu:
+                    # Menu open: check items, then close regardless
+                    creature = action_menu["creature"]
+                    opts  = _creature_menu_options(creature, resources, config)
+                    rects = action_menu_item_rects(
+                        *action_menu["anchor"], len(opts), game_w, game_h)
+                    for r, (label, _, available) in zip(rects, opts):
+                        if r.collidepoint(gx, gy) and available:
+                            if label == "Interact":
+                                levelled = creature.interact(action_menu["pool"])
+                                if levelled:
+                                    flash_text = creature.dialogue_text
+                                    flash_ttl  = 5.0
+                            elif label == "Feed":
+                                feed_cfg = config["creatures"].get(creature.name, {}).get("feeding", {})
+                                resources.add("forage", -feed_cfg["forage_cost"])
+                                levelled = creature.feed(action_menu["feed_pool"])
+                                if levelled:
+                                    flash_text = creature.dialogue_text
+                                    flash_ttl  = 5.0
+                            break
+                    action_menu = None
 
-                elif blink_dog and bd_rect.collidepoint(gx, gy) and blink_dog.can_interact:
-                    levelled = blink_dog.interact(dlg.BLINK_DOG)
-                    if levelled:
-                        flash_text = blink_dog.dialogue_text
-                        flash_ttl  = 5.0
+                elif stirge and s_rect.collidepoint(gx, gy) and stirge.is_present:
+                    action_menu = {
+                        "creature":  stirge,
+                        "pool":      dlg.STIRGE,
+                        "feed_pool": dlg.STIRGE_FEED,
+                        "anchor":    stirge_pos(game_w, game_h),
+                        "hover":     -1,
+                    }
+
+                elif blink_dog and bd_rect.collidepoint(gx, gy) and blink_dog.is_present:
+                    action_menu = {
+                        "creature":  blink_dog,
+                        "pool":      dlg.BLINK_DOG,
+                        "feed_pool": dlg.BLINK_DOG_FEED,
+                        "anchor":    blink_dog_pos(game_w, game_h),
+                        "hover":     -1,
+                    }
 
                 elif st_rect.collidepoint(gx, gy) and tend_cd <= 0:
                     tc = action_cfg["tend_statue"]
@@ -290,7 +348,7 @@ def main():
         dt_game  = dt_real * eff_mult
 
         resources.tick(dt_real, dt_game, areas)
-        creatures.update(dt_real, dt_game, time_sys.game_seconds, resources)
+        creatures.update(dt_real, dt_game, time_sys.game_seconds, time_sys.day_number, resources)
         events.update(dt_game)
 
         if forage_cd > 0: forage_cd -= dt_real
@@ -343,6 +401,14 @@ def main():
         if blink_dog and blink_dog.dialogue_text and blink_dog.dialogue_ttl > 0:
             bx, by = blink_dog_pos(game_w, game_h)
             draw_dialogue(game_surf, font_sm, blink_dog.dialogue_text, bx, by - 18)
+
+        # Creature action menu
+        if action_menu:
+            creature = action_menu["creature"]
+            opts = _creature_menu_options(creature, resources, config)
+            draw_action_menu(game_surf, font_sm, opts,
+                             *action_menu["anchor"], game_w, game_h,
+                             action_menu["hover"])
 
         # Action panel
         forage_avail = forage_cd <= 0

@@ -37,12 +37,14 @@
   },
   "creatures": {
     "stirge": {
-      "forage_per_second": [0.010, 0.018, 0.030, 0.050]
+      "forage_per_second": [0.010, 0.018, 0.030, 0.050],
+      "feeding": {"feeds_per_day": 2, "forage_cost": 3, "bond_xp_per_feed": 8, "cooldown_real_seconds": 300}
     },
     "blink_dog": {
       "forage_per_second":    [0.005, 0.010, 0.015, 0.020],
       "heartwood_per_second": [0.005, 0.010, 0.015, 0.020],
-      "glamour_per_second":   [0.001, 0.002, 0.003, 0.005]
+      "glamour_per_second":   [0.001, 0.002, 0.003, 0.005],
+      "feeding": {"feeds_per_day": 2, "forage_cost": 3, "bond_xp_per_feed": 8, "cooldown_real_seconds": 300}
     },
     "owlbear": {
       "heartwood_per_second": [0.050, 0.080, 0.120, 0.200]

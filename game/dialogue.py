@@ -77,6 +77,22 @@ MILESTONES = {
     },
 }
 
+STIRGE_FEED = [
+    "A small, embarrassingly eager sound. It does not make eye contact after.",
+    "It eats quickly. Then looks up. Then back down. Then up again.",
+    "It takes the food with surprising gentleness. A pause. Then it nudges your hand.",
+    "It watches the food the entire time you're placing it. Does not pretend otherwise.",
+    "The stirge is grateful in a way that is slightly mortifying for both of you.",
+]
+
+BLINK_DOG_FEED = [
+    "It teleports directly onto the food before you've finished setting it down.",
+    "There's a small pop. The food is gone. The blink dog is behind you now.",
+    "It reappears on the other side of the clearing, looking briefly surprised, as usual.",
+    "Gone. The food is gone. You didn't see it happen.",
+    "It blinks three times in quick succession and the food simply ceases to exist.",
+]
+
 FORAGE = [
     "You return with roots and berries, a little heartwood from fallen branches.",
     "The grove gives what it can. You bring it back.",

@@ -360,6 +360,73 @@ def draw_action_panel(surface, font, screen_w, screen_h, actions):
 
 
 # ------------------------------------------------------------------
+# Creature action menu
+
+_MENU_W      = 190
+_MENU_ITEM_H = 28
+_MENU_PAD    = 8
+
+
+def _menu_origin(anchor_x, anchor_y, n_options, screen_w, screen_h):
+    menu_h = n_options * _MENU_ITEM_H + _MENU_PAD * 2
+    mx = anchor_x - _MENU_W // 2
+    my = anchor_y - menu_h - 14
+    mx = max(4, min(mx, screen_w - _MENU_W - 4))
+    my = max(4, min(my, screen_h - menu_h - 4))
+    return mx, my
+
+
+def action_menu_item_rects(anchor_x, anchor_y, n_options, screen_w, screen_h):
+    """Item rects in game_surf coordinates — use for click detection."""
+    mx, my = _menu_origin(anchor_x, anchor_y, n_options, screen_w, screen_h)
+    return [
+        pygame.Rect(mx, my + _MENU_PAD + i * _MENU_ITEM_H, _MENU_W, _MENU_ITEM_H)
+        for i in range(n_options)
+    ]
+
+
+def draw_action_menu(surface, font, options, anchor_x, anchor_y,
+                     screen_w, screen_h, hover_idx=-1):
+    """
+    options: list of (label, detail, available)
+      label     — primary text
+      detail    — right-aligned secondary text (e.g. "-3 forage"), or ""
+      available — False renders greyed out and is not clickable
+    """
+    n = len(options)
+    mx, my = _menu_origin(anchor_x, anchor_y, n, screen_w, screen_h)
+    menu_h = n * _MENU_ITEM_H + _MENU_PAD * 2
+
+    bg = pygame.Surface((_MENU_W, menu_h), pygame.SRCALPHA)
+    bg.fill((12, 20, 12, 225))
+    surface.blit(bg, (mx, my))
+    pygame.draw.rect(surface, (70, 100, 60), (mx, my, _MENU_W, menu_h), 1)
+
+    for i, (label, detail, available) in enumerate(options):
+        ry = my + _MENU_PAD + i * _MENU_ITEM_H
+
+        if i == hover_idx and available:
+            pygame.draw.rect(surface, (30, 50, 25),
+                             pygame.Rect(mx + 1, ry, _MENU_W - 2, _MENU_ITEM_H))
+
+        col  = (200, 220, 180) if available else (90, 100, 85)
+        dcol = (140, 160, 120) if available else (70, 80, 65)
+
+        surface.blit(font.render(label, True, col), (mx + 10, ry + 6))
+        if detail:
+            dtxt = font.render(detail, True, dcol)
+            surface.blit(dtxt, (mx + _MENU_W - dtxt.get_width() - 8, ry + 6))
+
+    # Tail pointing down toward the creature
+    tx = max(mx + 6, min(anchor_x, mx + _MENU_W - 6))
+    ty = my + menu_h
+    pygame.draw.polygon(surface, (12, 20, 12),
+                        [(tx - 5, ty), (tx + 5, ty), (tx, ty + 9)])
+    pygame.draw.line(surface, (70, 100, 60), (tx - 5, ty), (tx, ty + 9))
+    pygame.draw.line(surface, (70, 100, 60), (tx + 5, ty), (tx, ty + 9))
+
+
+# ------------------------------------------------------------------
 # Ambient motes
 
 _motes = [(i * 137 % 700 + 162, i * 97 % 300 + 200) for i in range(18)]
