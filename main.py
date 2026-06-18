@@ -25,7 +25,7 @@ from game.renderer import (
     moss_wisp_rect, moss_wisp_pos,
     pixie_rect, pixie_pos,
     displacer_beast_rect, displacer_beast_pos,
-    statue_rect,
+    statue_rect, druid_rect,
 )
 
 CONFIG_PATH = "config.json"
@@ -170,10 +170,25 @@ def _creature_menu_options(creature, resources, config):
     feed_cfg  = config["creatures"].get(creature.name, {}).get("feeding", {})
     feed_cost = feed_cfg.get("forage_cost", 3)
     can_feed  = creature.can_feed and resources.forage >= feed_cost
-    return [
+    options = [
         ("Interact", "",                   creature.can_interact),
         ("Feed",     f"-{feed_cost:.0f} forage", can_feed),
     ]
+    if creature.has_event:
+        options.append(("Event", "", True))
+    return options
+
+
+def _apply_creature_event(creature, resources):
+    """Clears the creature's pending event, applies its reward, returns its text."""
+    event = creature.pending_event
+    for res, amount in event.get("reward", {}).items():
+        if res == "bond":
+            creature.bond_xp += amount
+        else:
+            resources.add(res, amount)
+    creature.pending_event = None
+    return event["text"]
 
 
 # ------------------------------------------------------------------
@@ -210,14 +225,14 @@ def main():
     resources = ResourceTracker(config)
     areas     = Areas(config)
     creatures = Creatures(config)
-    events    = Events()
+    events    = Events(config)
 
-    loaded, player_name = save_load.load_game(time_sys, resources, areas, creatures)
+    loaded, player_name = save_load.load_game(time_sys, resources, areas, creatures, events)
 
     if not loaded or not player_name:
         player_name = run_name_entry(screen, game_surf, clock, config,
                                      blit_x, blit_y, fullscreen, game_w, game_h)
-        save_load.save_game(time_sys, resources, areas, creatures, player_name)
+        save_load.save_game(time_sys, resources, areas, creatures, events, player_name)
 
     # Active action state
     action_cfg       = config["active_actions"]
@@ -257,18 +272,31 @@ def main():
     ]
 
     st_rect = statue_rect(game_w, game_h)
+    dr_rect = druid_rect(game_w, game_h)
 
-    def _grove_text(text, ttl=4.0):
+    def _grove_text(text):
         return {"mode": "text", "speaker": "The Grove", "text": text,
                 "creature": None, "pool": None, "feed_pool": None,
-                "ttl": ttl, "hover": -1}
+                "ttl": None, "hover": -1, "boxes": None, "box_idx": 0, "is_visitor": False}
 
     def _creature_text(creature):
         return {"mode": "text",
                 "speaker": creature.name.replace("_", " ").title(),
                 "text": creature.dialogue_text,
                 "creature": None, "pool": None, "feed_pool": None,
-                "ttl": creature.dialogue_ttl, "hover": -1}
+                "ttl": None, "hover": -1, "boxes": None, "box_idx": 0, "is_visitor": False}
+
+    def _event_text(creature, text):
+        return {"mode": "text",
+                "speaker": creature.name.replace("_", " ").title(),
+                "text": text,
+                "creature": None, "pool": None, "feed_pool": None,
+                "ttl": None, "hover": -1, "boxes": None, "box_idx": 0, "is_visitor": False}
+
+    def _visitor_text(text, speaker, boxes=None):
+        return {"mode": "text", "speaker": speaker, "text": text,
+                "creature": None, "pool": None, "feed_pool": None,
+                "ttl": None, "hover": -1, "boxes": boxes, "box_idx": 0, "is_visitor": True}
 
     running = True
     while running:
@@ -293,12 +321,20 @@ def main():
                 if event.key == pygame.K_ESCAPE:
                     if show_areas_panel:
                         show_areas_panel = False
+                    elif text_box and text_box["mode"] == "text":
+                        boxes = text_box.get("boxes")
+                        if boxes is not None and text_box["box_idx"] < len(boxes) - 1:
+                            pass  # non-last box: ESC suppressed to hint there's more
+                        else:
+                            if text_box.get("is_visitor"):
+                                events.advance_visitor(resources, time_sys.game_seconds)
+                            text_box = None
                     elif text_box:
                         text_box = None
                     else:
                         running = False
                 elif event.key == pygame.K_s:
-                    save_load.save_game(time_sys, resources, areas, creatures, player_name)
+                    save_load.save_game(time_sys, resources, areas, creatures, events, player_name)
                     center_flash_text, center_flash_ttl = "Saved.", 2.5
                 elif event.key == pygame.K_r:
                     show_areas_panel = not show_areas_panel
@@ -314,14 +350,14 @@ def main():
                         if random.random() < fc["glamour_chance"]:
                             resources.add("glamour", fc["glamour_yield"])
                         forage_cd = forage_cd_max
-                        text_box  = _grove_text(dlg.pick(dlg.FORAGE), 4.0)
+                        text_box  = _grove_text(dlg.pick(dlg.FORAGE))
                 elif event.key == pygame.K_t:
                     tc = action_cfg["tend_statue"]
                     if tend_cd <= 0 and resources.glamour >= tc["glamour_cost"]:
                         resources.add("glamour",    -tc["glamour_cost"])
                         resources.add("protection",  tc["protection_restore"])
                         tend_cd  = tend_cd_max
-                        text_box = _grove_text(dlg.pick(dlg.TEND_STATUE), 4.0)
+                        text_box = _grove_text(dlg.pick(dlg.TEND_STATUE))
                     elif tend_cd <= 0:
                         center_flash_text = "Not enough glamour to tend the statue."
                         center_flash_ttl  = 3.0
@@ -340,7 +376,7 @@ def main():
                                 areas.unlock(area_name, time_sys.game_seconds)
                                 msg      = dlg.AREA_RESTORED.get(area_name,
                                     f"The {area_name.replace('_',' ').title()} has been restored.")
-                                text_box         = _grove_text(msg, 5.0)
+                                text_box         = _grove_text(msg)
                                 show_areas_panel = False
                             else:
                                 center_flash_text = "Not enough resources."
@@ -357,18 +393,29 @@ def main():
                         if r.collidepoint(gx, gy) and available:
                             if label == "Interact":
                                 creature.interact(text_box["pool"])
+                                text_box = _creature_text(creature)
                             elif label == "Feed":
                                 feed_cfg = config["creatures"].get(creature.name, {}).get("feeding", {})
                                 resources.add("forage", -feed_cfg["forage_cost"])
                                 creature.feed(text_box["feed_pool"])
-                            text_box = _creature_text(creature)
+                                text_box = _creature_text(creature)
+                            elif label == "Event":
+                                text = _apply_creature_event(creature, resources)
+                                text_box = _event_text(creature, text)
                             acted = True
                             break
                     if not acted:
                         text_box = None   # click outside options → dismiss
 
                 elif text_box and text_box["mode"] == "text":
-                    text_box = None   # any click dismisses text
+                    boxes = text_box.get("boxes")
+                    if boxes is not None and text_box["box_idx"] < len(boxes) - 1:
+                        text_box["box_idx"] += 1
+                        text_box["text"] = boxes[text_box["box_idx"]]
+                    else:
+                        if text_box.get("is_visitor"):
+                            events.advance_visitor(resources, time_sys.game_seconds)
+                        text_box = None
 
                 else:
                     # Check creature clicks (data-driven)
@@ -377,28 +424,40 @@ def main():
                         c = creatures.get(entry["name"])
                         if c and c.is_present and entry["rect_fn"](game_w, game_h).collidepoint(gx, gy):
                             text_box = {
-                                "mode":      "options",
-                                "speaker":   c.name.replace("_", " ").title(),
-                                "text":      "",
-                                "creature":  c,
-                                "pool":      entry["pool"],
-                                "feed_pool": entry["feed_pool"],
-                                "ttl":       0.0,
-                                "hover":     -1,
+                                "mode":       "options",
+                                "speaker":    c.name.replace("_", " ").title(),
+                                "text":       "",
+                                "creature":   c,
+                                "pool":       entry["pool"],
+                                "feed_pool":  entry["feed_pool"],
+                                "ttl":        None,
+                                "hover":      -1,
+                                "boxes":      None,
+                                "box_idx":    0,
+                                "is_visitor": False,
                             }
                             clicked_creature = True
                             break
 
-                    if not clicked_creature and st_rect.collidepoint(gx, gy) and tend_cd <= 0:
-                        tc = action_cfg["tend_statue"]
-                        if resources.glamour >= tc["glamour_cost"]:
-                            resources.add("glamour",    -tc["glamour_cost"])
-                            resources.add("protection",  tc["protection_restore"])
-                            tend_cd  = tend_cd_max
-                            text_box = _grove_text(dlg.pick(dlg.TEND_STATUE), 4.0)
-                        else:
-                            center_flash_text = "Not enough glamour to tend the statue."
-                            center_flash_ttl  = 3.0
+                    if not clicked_creature and st_rect.collidepoint(gx, gy):
+                        if events.grove_pending_event:
+                            text_box = _grove_text(events.grove_pending_event["text"])
+                            events.grove_pending_event = None
+                        elif tend_cd <= 0:
+                            tc = action_cfg["tend_statue"]
+                            if resources.glamour >= tc["glamour_cost"]:
+                                resources.add("glamour",    -tc["glamour_cost"])
+                                resources.add("protection",  tc["protection_restore"])
+                                tend_cd  = tend_cd_max
+                                text_box = _grove_text(dlg.pick(dlg.TEND_STATUE))
+                            else:
+                                center_flash_text = "Not enough glamour to tend the statue."
+                                center_flash_ttl  = 3.0
+
+                    elif (not clicked_creature and events.visitor_pending_event
+                          and dr_rect.collidepoint(gx, gy)):
+                        boxes    = events.visitor_pending_event["boxes"]
+                        text_box = _visitor_text(boxes[0], events.visitor_display_name(), boxes)
 
         # ---- Update ----
         time_sys.update(dt_real)
@@ -406,8 +465,8 @@ def main():
         dt_game  = dt_real * eff_mult
 
         resources.tick(dt_real, dt_game, areas)
-        creatures.update(dt_real, dt_game, time_sys.game_seconds, time_sys.day_number, areas, resources)
-        events.update(dt_game)
+        creatures.update(dt_real, dt_game, time_sys.game_seconds, time_sys.day_number, areas, resources, events)
+        events.update(dt_real, areas, creatures, time_sys)
 
         if forage_cd > 0: forage_cd -= dt_real
         if tend_cd   > 0: tend_cd   -= dt_real
@@ -417,19 +476,19 @@ def main():
         else:
             center_flash_text = ""
 
-        if text_box and text_box["mode"] == "text":
+        if text_box and text_box["mode"] == "text" and text_box.get("ttl") is not None:
             text_box["ttl"] -= dt_real
             if text_box["ttl"] <= 0:
                 text_box = None
 
         now = time.time()
         if now - last_autosave >= autosave_interval:
-            save_load.save_game(time_sys, resources, areas, creatures, player_name)
+            save_load.save_game(time_sys, resources, areas, creatures, events, player_name)
             last_autosave = now
 
         # ---- Render ----
         draw_scene(game_surf, time_sys.period, time_sys.time_of_day,
-                   game_w, game_h, creatures)
+                   game_w, game_h, creatures, events)
 
         # Title + player name
         title = font_lg.render("The Grove", True, (200, 230, 180))
@@ -488,7 +547,7 @@ def main():
 
         pygame.display.flip()
 
-    save_load.save_game(time_sys, resources, areas, creatures, player_name)
+    save_load.save_game(time_sys, resources, areas, creatures, events, player_name)
     pygame.quit()
     sys.exit()
 

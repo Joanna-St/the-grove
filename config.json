@@ -131,8 +131,14 @@
   },
   "events": {
     "creature_event_interval_seconds": 300,
+    "creature_event_stagger_seconds":  60,
+    "fixed_event_delay_range_seconds": [30, 120],
+    "fixed_event_bond_xp":             10,
+    "repeatable_event_bond_xp":         6,
+    "repeatable_event_resource_yield":  2.0,
     "grove_event_interval_seconds":    600,
-    "visitor_event_interval_seconds":  3600
+    "visitor_event_interval_seconds":  3600,
+    "visitor_druid_min_day":           10
   },
   "autosave_interval_seconds": 60
 }

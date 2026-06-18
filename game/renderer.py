@@ -144,9 +144,17 @@ def statue_rect(screen_w, screen_h):
 # ------------------------------------------------------------------
 # Druid figure
 
+def druid_pos(screen_w, screen_h):
+    return (int(screen_w * 0.34), int(screen_h * 0.60))
+
+
+def druid_rect(screen_w, screen_h):
+    x, y = druid_pos(screen_w, screen_h)
+    return pygame.Rect(x - 26, y - 30, 52, 100)
+
+
 def draw_druid(surface, period, screen_w, screen_h):
-    dx = int(screen_w * 0.34)
-    dy = int(screen_h * 0.60)
+    dx, dy = druid_pos(screen_w, screen_h)
 
     robe = (45, 55, 42)
     hood = (35, 44, 32)
@@ -181,7 +189,7 @@ def stirge_rect(screen_w, screen_h):
     return pygame.Rect(x - 18, y - 14, 36, 28)
 
 
-def draw_stirge(surface, screen_w, screen_h, period, is_present, can_interact):
+def draw_stirge(surface, screen_w, screen_h, period, is_present):
     if not is_present:
         return
     x, y = stirge_pos(screen_w, screen_h)
@@ -203,10 +211,6 @@ def draw_stirge(surface, screen_w, screen_h, period, is_present, can_interact):
     # Eye
     pygame.draw.circle(surface, eye, (x + 4, y - 3), 3)
 
-    # Interaction highlight ring
-    if can_interact:
-        pygame.draw.circle(surface, (200, 180, 100), (x, y), 18, 1)
-
 
 # ------------------------------------------------------------------
 # Blink Dog — small canine with a magical shimmer
@@ -223,7 +227,7 @@ def blink_dog_rect(screen_w, screen_h):
     return pygame.Rect(x - 22, y - 16, 44, 28)
 
 
-def draw_blink_dog(surface, screen_w, screen_h, period, is_present, can_interact, time_of_day):
+def draw_blink_dog(surface, screen_w, screen_h, period, is_present, time_of_day):
     if not is_present:
         return
     bx, by = blink_dog_pos(screen_w, screen_h)
@@ -266,10 +270,6 @@ def draw_blink_dog(surface, screen_w, screen_h, period, is_present, can_interact
     pygame.draw.ellipse(aura, (160, 180, 220, 25), (0, 0, 60, 40))
     surface.blit(aura, (x - 30, y - 20))
 
-    # Interaction highlight ring
-    if can_interact:
-        pygame.draw.circle(surface, (200, 180, 100), (x, y), 22, 1)
-
 
 # ------------------------------------------------------------------
 # Owlbear — large, bear-bodied, owl-headed
@@ -283,7 +283,7 @@ def owlbear_rect(screen_w, screen_h):
     return pygame.Rect(x - 28, y - 30, 56, 46)
 
 
-def draw_owlbear(surface, screen_w, screen_h, period, is_present, can_interact):
+def draw_owlbear(surface, screen_w, screen_h, period, is_present):
     if not is_present:
         return
     x, y = owlbear_pos(screen_w, screen_h)
@@ -315,9 +315,6 @@ def draw_owlbear(surface, screen_w, screen_h, period, is_present, can_interact):
     pygame.draw.line(surface, dark, (x - 10, y + 12), (x - 10, y + 24), 4)
     pygame.draw.line(surface, dark, (x + 4,  y + 12), (x + 4,  y + 24), 4)
 
-    if can_interact:
-        pygame.draw.circle(surface, (200, 180, 100), (x, y), 30, 1)
-
 
 # ------------------------------------------------------------------
 # Pseudodragon — small, winged, perched high
@@ -331,7 +328,7 @@ def pseudodragon_rect(screen_w, screen_h):
     return pygame.Rect(x - 22, y - 14, 44, 28)
 
 
-def draw_pseudodragon(surface, screen_w, screen_h, period, is_present, can_interact):
+def draw_pseudodragon(surface, screen_w, screen_h, period, is_present):
     if not is_present:
         return
     x, y = pseudodragon_pos(screen_w, screen_h)
@@ -360,9 +357,6 @@ def draw_pseudodragon(surface, screen_w, screen_h, period, is_present, can_inter
     pygame.draw.line(surface, scale, (x - 10, y + 6), (x - 20, y + 14), 3)
     pygame.draw.line(surface, scale, (x - 20, y + 14), (x - 14, y + 20), 2)
 
-    if can_interact:
-        pygame.draw.circle(surface, (200, 180, 100), (x, y), 22, 1)
-
 
 # ------------------------------------------------------------------
 # Flumph — floating jellyfish, bioluminescent
@@ -379,7 +373,7 @@ def flumph_rect(screen_w, screen_h):
     return pygame.Rect(x - 18, y - 18, 36, 36)
 
 
-def draw_flumph(surface, screen_w, screen_h, period, is_present, can_interact, time_of_day):
+def draw_flumph(surface, screen_w, screen_h, period, is_present, time_of_day):
     if not is_present:
         return
     fx, fy_base = flumph_pos(screen_w, screen_h)
@@ -410,9 +404,6 @@ def draw_flumph(surface, screen_w, screen_h, period, is_present, can_interact, t
     pygame.draw.circle(surface, (230, 250, 255), (x - 4, y - 4), 2)
     pygame.draw.circle(surface, (230, 250, 255), (x + 4, y - 4), 2)
 
-    if can_interact:
-        pygame.draw.circle(surface, (200, 180, 100), (x, y), 20, 1)
-
 
 # ------------------------------------------------------------------
 # Moss Wisp — glowing orb trailing green tendrils
@@ -426,7 +417,7 @@ def moss_wisp_rect(screen_w, screen_h):
     return pygame.Rect(x - 16, y - 16, 32, 32)
 
 
-def draw_moss_wisp(surface, screen_w, screen_h, period, is_present, can_interact, time_of_day):
+def draw_moss_wisp(surface, screen_w, screen_h, period, is_present, time_of_day):
     if not is_present:
         return
     wx, wy = moss_wisp_pos(screen_w, screen_h)
@@ -456,9 +447,6 @@ def draw_moss_wisp(surface, screen_w, screen_h, period, is_present, can_interact
     pygame.draw.circle(surface, core_col, (x, y), 9)
     pygame.draw.circle(surface, (220, 255, 190), (x - 2, y - 2), 4)
 
-    if can_interact:
-        pygame.draw.circle(surface, (200, 180, 100), (x, y), 18, 1)
-
 
 # ------------------------------------------------------------------
 # Pixie — tiny winged figure, glowing
@@ -472,7 +460,7 @@ def pixie_rect(screen_w, screen_h):
     return pygame.Rect(x - 16, y - 18, 32, 32)
 
 
-def draw_pixie(surface, screen_w, screen_h, period, is_present, can_interact, time_of_day):
+def draw_pixie(surface, screen_w, screen_h, period, is_present, time_of_day):
     if not is_present:
         return
     px_base, py_base = pixie_pos(screen_w, screen_h)
@@ -506,9 +494,6 @@ def draw_pixie(surface, screen_w, screen_h, period, is_present, can_interact, ti
     # Hair
     pygame.draw.circle(surface, hair, (x, y - 16), 4)
 
-    if can_interact:
-        pygame.draw.circle(surface, (200, 180, 100), (x, y), 18, 1)
-
 
 # ------------------------------------------------------------------
 # Displacer Beast — large panther-like, slightly ghost-offset
@@ -522,7 +507,7 @@ def displacer_beast_rect(screen_w, screen_h):
     return pygame.Rect(x - 30, y - 22, 60, 38)
 
 
-def draw_displacer_beast(surface, screen_w, screen_h, period, is_present, can_interact, time_of_day):
+def draw_displacer_beast(surface, screen_w, screen_h, period, is_present, time_of_day):
     if not is_present:
         return
     x, y = displacer_beast_pos(screen_w, screen_h)
@@ -560,8 +545,17 @@ def draw_displacer_beast(surface, screen_w, screen_h, period, is_present, can_in
     # Tail
     pygame.draw.line(surface, fur, (x - 26, y), (x - 38, y - 10), 3)
 
-    if can_interact:
-        pygame.draw.circle(surface, (200, 180, 100), (x, y), 30, 1)
+
+# ------------------------------------------------------------------
+# Notification marker
+#
+# Placeholder "!" — used for both "ready to interact" and "event available".
+# Final visual TBD; (x, y) is the bottom-centre anchor point.
+
+def draw_notification(surface, x, y):
+    col = (230, 200, 110)
+    pygame.draw.rect(surface, col, (x - 2, y - 14, 4, 9), border_radius=1)
+    pygame.draw.circle(surface, col, (x, y - 2), 2)
 
 
 # ------------------------------------------------------------------
@@ -963,7 +957,7 @@ def draw_motes(surface, period, time_of_day, screen_w, screen_h):
 # Master scene draw
 
 def draw_scene(surface, period, time_of_day, screen_w, screen_h,
-               creatures=None):
+               creatures=None, events=None):
     draw_background(surface, period, screen_w, screen_h)
     draw_trees(surface, period, screen_w, screen_h)
     draw_clearing(surface, period, screen_w, screen_h)
@@ -977,28 +971,44 @@ def draw_scene(surface, period, time_of_day, screen_w, screen_h,
             if not c:
                 continue
             if name == "stirge":
-                draw_stirge(surface, screen_w, screen_h, period,
-                            c.is_present, c.can_interact)
+                draw_stirge(surface, screen_w, screen_h, period, c.is_present)
+                rect = stirge_rect(screen_w, screen_h)
             elif name == "blink_dog":
                 draw_blink_dog(surface, screen_w, screen_h, period,
-                               c.is_present, c.can_interact, time_of_day)
+                               c.is_present, time_of_day)
+                rect = blink_dog_rect(screen_w, screen_h)
             elif name == "owlbear":
-                draw_owlbear(surface, screen_w, screen_h, period,
-                             c.is_present, c.can_interact)
+                draw_owlbear(surface, screen_w, screen_h, period, c.is_present)
+                rect = owlbear_rect(screen_w, screen_h)
             elif name == "pseudodragon":
-                draw_pseudodragon(surface, screen_w, screen_h, period,
-                                  c.is_present, c.can_interact)
+                draw_pseudodragon(surface, screen_w, screen_h, period, c.is_present)
+                rect = pseudodragon_rect(screen_w, screen_h)
             elif name == "flumph":
                 draw_flumph(surface, screen_w, screen_h, period,
-                            c.is_present, c.can_interact, time_of_day)
+                            c.is_present, time_of_day)
+                rect = flumph_rect(screen_w, screen_h)
             elif name == "moss_wisp":
                 draw_moss_wisp(surface, screen_w, screen_h, period,
-                               c.is_present, c.can_interact, time_of_day)
+                               c.is_present, time_of_day)
+                rect = moss_wisp_rect(screen_w, screen_h)
             elif name == "pixie":
                 draw_pixie(surface, screen_w, screen_h, period,
-                           c.is_present, c.can_interact, time_of_day)
+                           c.is_present, time_of_day)
+                rect = pixie_rect(screen_w, screen_h)
             elif name == "displacer_beast":
                 draw_displacer_beast(surface, screen_w, screen_h, period,
-                                     c.is_present, c.can_interact, time_of_day)
+                                     c.is_present, time_of_day)
+                rect = displacer_beast_rect(screen_w, screen_h)
+
+            if c.is_present and (c.can_interact or c.has_event):
+                draw_notification(surface, rect.centerx, rect.top - 4)
+
+    if events:
+        if events.grove_pending_event:
+            rect = statue_rect(screen_w, screen_h)
+            draw_notification(surface, rect.centerx, rect.top - 4)
+        if events.visitor_pending_event:
+            rect = druid_rect(screen_w, screen_h)
+            draw_notification(surface, rect.centerx, rect.top - 4)
 
     draw_motes(surface, period, time_of_day, screen_w, screen_h)
