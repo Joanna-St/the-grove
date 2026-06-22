@@ -31,8 +31,7 @@ Things to consider for later phases. Not current phase scope.
   that is silently cut off. The blink dog Bond 1 fixed event (5 sentences)
   overruns this badly. Revisit the FIXED_EVENTS / REPEATABLE_EVENTS text in
   `dialogue.py` — either trim the longer entries to fit ~3 lines at the
-  current box width/font, or rework the text box to scroll/expand for longer
-  passages. Worth a pass over all 8 creatures' fixed + repeatable events, not
+  current box width/font, or split into multi-box. Worth a pass over all 8 creatures' fixed + repeatable events, not
   just blink dog.
 
 - **Text pass: maximise area/creature cross-references** — go over all written
@@ -41,6 +40,12 @@ Things to consider for later phases. Not current phase scope.
   by name consistently and as often as natural, so the grove reads as a single
   connected place rather than isolated creature/area vignettes. Do this as a
   full pass once all text content is otherwise final — revisit in Phase 5.
+
+- **Creature reveal: outline-to-sprite fill** — instead of a creature simply
+  popping into existence on arrival, show a faint outline/silhouette of its
+  shape beforehand (mirroring the area greyscale-to-colour treatment), which
+  fills in with the full sprite once the creature actually arrives. Nice-to-have,
+  not core to the Phase 5 art swap — revisit once base sprite integration is done.
 
 ---
 

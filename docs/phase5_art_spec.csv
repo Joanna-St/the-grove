@@ -1,0 +1,11 @@
+File,Subject,Type,Visual cue (from design doc),Format notes,Status
+druid.png,Druid,Character,"Hooded robe, natural detailing (leaves/moss/bark), gender-neutral, calm/still posture",PNG transparent background; single static idle pose,Wired into renderer.py
+stirge.png,Stirge,Creature,"Mosquito/bat hybrid, scrawny, pathetic-endearing, a little ugly",PNG transparent background,Wired into renderer.py
+blink_dog.png,Blink Dog,Creature,"Enthusiastic canine, faint shimmer/teleport aura, can't sit still",PNG transparent background,Wired into renderer.py
+owlbear.png,Owlbear,Creature,"Big, anxious owl-bear hybrid, looks accidentally destructive",PNG transparent background,Wired into renderer.py
+pseudodragon.png,Pseudodragon,Creature,"Tiny dragon, perches high, mildly disdainful expression",PNG transparent background,Wired into renderer.py
+flumph.png,Flumph,Creature,"Jellyfish/manta-like floating creature, glows softly with mood",PNG transparent background,Wired into renderer.py
+moss_wisp.png,Moss Wisp,Creature,"Ancient ambient presence, barely a creature, mossy/ghostly light",PNG transparent background,Wired into renderer.py
+pixie.png,Pixie,Creature,"Small, chaotic fae, mischievous expression",PNG transparent background,Wired into renderer.py
+displacer_beast.png,Displacer Beast,Creature,"Large shimmering feline-like beast, proud and protective bearing",PNG transparent background,Wired into renderer.py
+background.png,Heartstone clearing (full scene),Background,"Single unified clearing scene containing 4 distinct visually-readable sub-zones baked in: a thicket patch, a canopy/treetop area, a Feywild-boundary-ish edge, an oldwood corner — these get desaturated in code until each area is unlocked",PNG; no transparency needed; full colour/finished,Wired into renderer.py — zones approximated as rough rects (no baked-in masks), feathered + greyscaled per-zone when locked

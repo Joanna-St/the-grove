@@ -60,7 +60,10 @@ Full phase descriptions in design doc.
 ## Current Phase
 **Phase 5 — Art & Polish**
 
-Scope TBD at start of phase — see design doc for original spec (pixel sprites for druid/creatures, replacing coded placeholders) plus accumulated revisit items in IDEAS.md (Shield rename, resource storage caps, multi-box visual indicator, etc).
+Sprites and background wired into renderer.py, locked-area desaturation
+implemented (Session 12). Next step: UI polish items from IDEAS.md (Shield
+rename, resource storage caps, multi-box visual indicator, fullscreen toggle,
+custom icon, text cross-reference pass, blink dog forage pool bug).
 
 ## Phase 6 — Post-Launch Additions (not yet scoped)
 - Creature max-bond perks (design.md specs one per creature: Pseudodragon/Stirge early-warning, Flumph/Displacer Beast event dampening, Pixie wildcard intervention, Blink Dog yield boost, Moss Wisp grove-health-gated boost). Deliberately deferred post-launch — half of these assume a negative/threat tagging axis for grove + visitor events that doesn't exist yet (4c/4d shipped as pure flavour, no good/bad categorisation). Revisit scoping then.
@@ -182,3 +185,157 @@ made that future sessions need to know about.*
 - **Decision:** creature max-bond perks (design.md spec) deferred to a new Phase 6 (post-launch). Half the perks assume a negative/threatening-event axis that doesn't exist in the current event content — re-scope when revisited.
 - `config.json` QA test values reverted: `grove_event_interval_seconds` 20 → 600, `visitor_druid_min_day` 2 → 10
 - **Next:** Phase 5 — Art & Polish (scope not yet defined this session)
+
+### Session 10 — [21.06.2026]
+**Phase 5 — Art production complete.**
+
+All final art assets generated via AI (DALL-E via Bing Image Creator / ChatGPT).
+Iterative prompt refinement approach — multiple passes per subject with reference
+images used for owlbear and displacer beast to anchor body shape.
+
+**Assets finalised:**
+- `background.png` — full grove scene, pixel art / Stardew Valley style, five zones
+  readable (heartstone clearing with Silvanus statue baked in, thicket lower-left,
+  oldwood upper-left, canopy upper-centre, Feywild boundary right with organic
+  shimmer veil). Statue integrated into background — not a separate sprite.
+- `stirge.png` — mosquito-bat hybrid, pathetic-endearing, hunched pose. Needs bg removal.
+- `blink_dog.png` — scrappy canine, mid-movement chaos energy, transparent bg.
+- `owlbear.png` — large and heavy, owl face, sheepish wide eyes, transparent bg.
+  Required reference image (D&D official art) to anchor body shape.
+- `pseudodragon.png` — slender eastern-dragon style (Mushu reference), upright perch,
+  quietly disdainful. Needs bg removal.
+- `flumph.png` — jellyfish interpretation (departed from D&D anatomy deliberately —
+  D&D flumph unreadable at sprite scale); pale translucent dome, drowsy courteous
+  expression, transparent bg.
+- `moss_wisp.png` — glowing green-white orb, mossy trailing edges, minimal face
+  (prompt said no face; AI disagreed). Transparent bg.
+- `pixie.png` — small fae figure, mid-movement impish energy, hollow dark eyes,
+  transparent bg.
+- `displacer_beast.png` — blue panther with shoulder tentacles, proud upright posture,
+  reads slightly domestic-cat but personality correct. Required reference image.
+  Needs bg removal.
+- `druid.png` — hooded figure, face partially shadowed, natural leaf/moss robe detailing,
+  belted, calm and still. Needs bg removal.
+
+**Decisions:**
+- Statue baked into background rather than separate sprite — eliminates style mismatch risk
+- Flumph jellyfish interpretation accepted over D&D anatomy — better readable at sprite scale
+- All sprites consistent pixel art style; background Stardew Valley / RPG Maker flat style
+
+### Session 11 — [22.06.2026]
+**Phase 5 — Sprite processing complete.**
+
+All sprites processed from JFIF source files into final game-ready PNGs using
+Python (Pillow + scipy + sklearn). Background also replaced with a higher-quality
+version (more detailed, better zone separation).
+
+**Background:**
+- New background chosen over Session 10 version — richer detail, cleaner zone
+  separation (gnarled oldwood tree clearly on left, veil on right, stone circle
+  centre with cobblestone path).
+
+**Processing pipeline applied to all 9 creature sprites:**
+1. **Background removal** — two-colour flood fill from image edges, detecting the
+   checkerboard transparency pattern baked into JFIF exports; flood fill seeded
+   from border pixels, expanding through bg-coloured pixels only.
+2. **Colour harmonisation** — zone-aware correction per sprite:
+   - Brightness normalised toward background range (target ~85, bg mean ~60)
+   - Green ambient tint applied to simulate forest canopy lighting
+   - Saturation boosted to match background's vivid pixel-art palette (~38–45)
+   - Contrast lifted (×1.18) to read against detailed background
+   - Glow sprites (moss_wisp, flumph, pixie) kept brighter (target ~120) with
+     channel-specific glow: green for wisp, pink-blue for flumph, golden for pixie
+   - Zone tints: veil sprites get blue-purple cast; oldwood sprites get cool teal
+3. **Pixelation pass** — rendered sprites (blink_dog, owlbear, flumph) had smooth
+   AI gradients; 5px-block nearest-neighbour downscale/upscale reduces apparent
+   resolution to match background's pixel art density
+
+**Per-sprite notes:**
+- `pseudodragon.png` — had enclosed interior background pocket between neck and wing
+  (not reachable by edge flood fill); required secondary pass expanding transparent
+  region through bg-coloured pixels adjacent to existing transparent area
+- `flumph.png` — width squished to 70% (height preserved) to give a slimmer,
+  more drifting silhouette; hue required more aggressive green reduction than
+  other sprites (final: G ×0.68, R ×1.05, B ×1.04)
+- `blink_dog.png` — similarly required heavy green reduction (G ×0.72, R ×1.06)
+  to restore warm amber; brightness lifted ×1.25 late in process
+- `owlbear.png` — brightness dialled back ×0.82 at end; was competing with brighter
+  clearing creatures
+- `displacer_beast.png` — white fringe at base required targeted pass removing
+  high-brightness low-saturation pixels after main flood fill
+
+**Composite mockup decisions (mockup only — not game layout):**
+- Owlbear: largest (230px), bottom-left path
+- Displacer beast: near-equal (285px), by gnarled left tree, mid-height
+- Druid: 160px, centre foreground
+- Flumph: 130px (squished), in the veil (right)
+- Blink dog: 120px, left of statue
+- Moss wisp: 90px, above left tree
+- Pseudodragon: 110px, in right treeline canopy
+- Pixie: 70px, deep in veil, upper right
+- Stirge: 108px, right of statue at ground level
+
+**Next:** Wire sprites into `renderer.py` replacing coded placeholders. Then UI
+polish from IDEAS.md: Shield rename, resource storage caps, multi-box visual
+indicator, fullscreen toggle, custom icon, text cross-reference pass, blink dog
+forage pool bug.
+
+### Session 12 — [22.06.2026]
+**Phase 5 — Sprites wired into renderer.py; locked-area desaturation implemented.**
+
+- `game/renderer.py` — rewritten: `draw_background`/`draw_trees`/`draw_clearing`/
+  `draw_statue`/`draw_druid` and all 8 creature `draw_*` functions no longer draw
+  procedural geometry; they blit real sprites instead. Generic sprite pipeline:
+  `_load_sprite_raw()` loads + crops each PNG to its non-transparent bounding box
+  (so transparent canvas padding, e.g. stirge's 1792×1024 file, doesn't skew
+  sizing/centring); `_get_sprite_scaled()` scales to a target width preserving
+  aspect, cached by `(name, target_w)`; `_blit_sprite()` centres at a layout
+  position with optional offset/alpha for animation. `_SPRITE_LAYOUT` holds
+  per-creature `(centre_x_frac, centre_y_frac, width_frac)` — values derived by
+  diffing the Session 11 `mockup_composite.png` against `background.png` (connected-
+  component analysis to recover each creature's placed centre + the session log's
+  recorded composite sizes), not eyeballed
+- Per-creature animation preserved from the placeholder era: blink dog shimmer-jitter,
+  flumph bob, moss wisp drift, pixie flutter; displacer beast gained a new
+  translucent ghost-offset double-blit (displacement illusion) since the placeholder's
+  version was geometry-only
+- `draw_statue`/`statue_rect` — statue art is baked into the background image now
+  (not drawn), so `draw_statue` only draws the ambient glow; `statue_rect` repositioned/
+  resized (measured directly off the background pixels) to match the new taller
+  antlered statue for click detection
+- Background scaling: background.png (1536×1024) doesn't match the 900×640 window
+  aspect ratio (1.5 vs 1.40625) — scaled uniformly to cover (factor 0.625) and
+  centre-cropped 30px off each side, rather than stretched, to avoid distorting the
+  art
+- Added `draw_period_tint()` — translucent dawn/dusk/night colour overlay over the
+  whole scene, replacing the old approach of drawing a period-coloured sky directly
+  (no longer possible now the sky is baked into the background art)
+- **Locked-area desaturation (scoped mid-session, not originally planned for this
+  session):** `docs/phase5_art_spec.csv` recorded the original art intent — 4 sub-
+  zones baked into the background meant to desaturate until their area unlocks —
+  but this was never implemented in any prior session, and no zone masks exist in
+  the art. Asked the user whether to scope it now or defer; user chose now.
+  `_ZONE_RECTS` defines rough rectangles (fractions of the background image) for
+  oldwood/thicket/canopy/feywild_boundary, positioned to match where each area's
+  creatures already sit (e.g. oldwood = upper-left, around displacer beast + moss
+  wisp); heartstone has no rect and is never desaturated. `_background_with_locked_zones()`
+  greyscales the background and composites it back over the colour version only
+  within each locked zone's mask, feathered via a cheap downscale/upscale blur
+  (pure pygame, no numpy) so the zone edges aren't hard rectangles; cached per
+  `(screen size, frozenset of locked zone names)` since it only needs to change
+  when an area unlocks. `draw_background()` / `draw_scene()` gained an `areas=None`
+  param to drive this; `main.py` passes `areas` through at both `draw_scene()` call
+  sites (main loop + name-entry screen, the latter via a new `areas` param on
+  `run_name_entry()`)
+- Verified via direct pixel sampling (not just visual inspection): rendered scenes
+  with various lock states and read back pixel colour at zone centres to confirm
+  greyscale vs colour matched lock state exactly, including independent partial-
+  unlock combinations
+- **Decision:** zone boundaries are rough rectangles, not hand-painted masks —
+  acceptable per user given no per-zone art masks exist; revisit with real masks
+  only if the rectangle edges read as visually wrong in actual play
+- `docs/phase5_art_spec.csv` — all rows updated from "Not started" to reflect
+  wired-in status
+- **Next:** UI polish from IDEAS.md — Shield rename, resource storage caps,
+  multi-box visual indicator, fullscreen toggle, custom icon, text cross-reference
+  pass, blink dog forage pool bug.

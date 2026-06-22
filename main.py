@@ -47,7 +47,7 @@ DIM   = (120, 120, 120)
 # Name entry screen
 
 def run_name_entry(screen, game_surf, clock, config, blit_x, blit_y,
-                   fullscreen, game_w, game_h):
+                   fullscreen, game_w, game_h, areas):
     font    = pygame.font.SysFont("Consolas", 15)
     font_lg = pygame.font.SysFont("Consolas", 22, bold=True)
     name    = ""
@@ -67,7 +67,7 @@ def run_name_entry(screen, game_surf, clock, config, blit_x, blit_y,
                     name += event.unicode
 
         # Background: always dawn for the opening screen
-        draw_scene(game_surf, "dawn", 0.05, game_w, game_h)
+        draw_scene(game_surf, "dawn", 0.05, game_w, game_h, areas=areas)
 
         pw, ph = 420, 170
         px = (game_w - pw) // 2
@@ -231,7 +231,7 @@ def main():
 
     if not loaded or not player_name:
         player_name = run_name_entry(screen, game_surf, clock, config,
-                                     blit_x, blit_y, fullscreen, game_w, game_h)
+                                     blit_x, blit_y, fullscreen, game_w, game_h, areas)
         save_load.save_game(time_sys, resources, areas, creatures, events, player_name)
 
     # Active action state
@@ -488,7 +488,7 @@ def main():
 
         # ---- Render ----
         draw_scene(game_surf, time_sys.period, time_sys.time_of_day,
-                   game_w, game_h, creatures, events)
+                   game_w, game_h, creatures, events, areas)
 
         # Title + player name
         title = font_lg.render("The Grove", True, (200, 230, 180))
