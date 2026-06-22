@@ -339,3 +339,293 @@ forage pool bug.
 - **Next:** UI polish from IDEAS.md — Shield rename, resource storage caps,
   multi-box visual indicator, fullscreen toggle, custom icon, text cross-reference
   pass, blink dog forage pool bug.
+
+### Session 13 — [22.06.2026]
+**Phase 5 — HUD layout pass, working issue-by-issue against the real art (in progress).**
+
+Now that the real background/sprites are in, the old HUD layout (designed
+around tiny placeholder shapes) collides with the much bigger real sprites.
+User listed 6 concrete issues to work through one at a time: discuss → agree →
+implement → test → confirm → log → next. First two done this session:
+
+**Issue 1 — resource panel covered moss wisp.**
+- `game/resources.py` — `ResourceTracker.render()` rebuilt slimmer: bars
+  80×15px (was 220×22), smaller font (caller now passes `font_sm`), panel
+  208×100px (was 375×138). Geometry exposed as class constants
+  (`PANEL_W`/`PANEL_H`/etc.) so `main.py` can position it without duplicating
+  the math.
+- `main.py` — resource panel moved from top-left to the bottom-right corner,
+  sharing a row with the message box; bottom edge aligned with the message
+  box's bottom edge, height now matches it exactly (100px) at the user's
+  request (`PANEL_BAR_H`=15, `PANEL_PAD`=8 tune to exactly 100).
+- `game/renderer.py` — `draw_text_box`/`text_box_item_rects` gained a
+  `right_inset` param so the message box narrows to leave room for the
+  resource panel without moving its left edge; `draw_action_panel`'s margin
+  changed 12→20 to align with the rest of the bottom-right column. Action
+  panel re-anchored above the resource panel (16px gap, nudged up from an
+  initial 8px at the user's request, since it's getting redesigned anyway).
+- Time HUD and bond list left untouched at top-left per user request — to be
+  addressed in a later iteration, not this pass.
+
+**Issue 2 — bond list covered displacer beast and owlbear.**
+- Replaced the 8-line sidebar bond-status list entirely with a small 3-segment
+  bar drawn directly under each *present* creature's sprite (`draw_bond_bar()`
+  in `game/renderer.py`) — scales with however many creatures have arrived
+  instead of reserving a fixed block, and reuses the existing
+  `bond_flash_ttl` for a brighten-on-levelup flash instead of the old text
+  colour-flash.
+- Feed-count tracking (`[f:**]`) dropped from the HUD entirely rather than
+  carried into the new bar — `Creature.feed_indicator` (game/creatures.py)
+  is now unused in-game; parked in IDEAS.md as a future info/help overlay
+  item instead (controls + per-creature feed limits), since checking it live
+  was never actually necessary (the action menu already greys out Feed when
+  unavailable).
+- `_SPRITE_LAYOUT` position nudges to make room for bars without collisions:
+  owlbear `y_frac` 0.702→0.670 (was 3px from the message box, needed ~12px
+  clearance for the bar), displacer_beast 0.382→0.350 (consistency nudge,
+  same delta as owlbear). Verified by pixel-sampling the rendered output
+  (not just eyeballing) that every creature's bar clears the message box and
+  doesn't overlap a neighbouring sprite.
+- Follow-up tuning after user checked live: bar segments changed from 9×7 to
+  13×5 (wider, slimmer); per-creature vertical-offset override added
+  (`_BOND_BAR_GAP_OVERRIDE`) since blink_dog and flumph's bounding boxes have
+  a lot of transparent "air" below their visual mass (flumph's tentacle tips
+  taper almost to nothing, dragging its bbox bottom well below its body) —
+  pulled flumph's bar in by 16px, blink_dog's by 4px, rather than a flat gap
+  for every creature. Also nudged flumph's own position left (`x_frac`
+  0.897→0.870) — it was overlapping the pixie by 7px; now 17px clear.
+- `IDEAS.md` — added "Info / help overlay" entry under a new UI/Info section.
+
+**Decision:** working strictly one issue at a time through this list, each
+with discuss→agree→implement→test→confirm→log before moving on (explicit
+user instruction — see memory `feedback_workflow_discuss_first`).
+
+**Issue 3 — player name + keybinds cheat sheet felt out of place.**
+- `main.py` — both removed from the live HUD entirely rather than restyled.
+  Keybinds cheat sheet isn't coming back as a permanent HUD element — it
+  folds into the future info/help overlay (already parked in IDEAS.md).
+  Player name returns later, repositioned near the bottom action area once
+  that's redesigned (issue 4). `render_player_name()`/`render_keybinds()`
+  left defined in main.py (unused for now) rather than deleted, since both
+  are slated for near-term reuse.
+- Title ("The Grove") untouched — wasn't part of this issue.
+
+**Issue 4 — Forage/Tend Statue buttons felt out of place; folded in the
+orphaned time HUD too.**
+- Turned out not to need a menu system at all — the statue's existing click
+  pattern (event-if-pending, else action-if-ready, no menu) was simply
+  extended to the druid rather than building out a generalised options-menu
+  for non-creature entities (the originally-discussed "menu with
+  forage/tend/event" approach was reconsidered as overkill once we talked
+  through it).
+  - `main.py` — druid click handler now mirrors the statue's: visitor event
+    if pending, else triggers Forage if `forage_cd <= 0` (same resource
+    yield logic as the old `[F]` keypress). Statue click handler unchanged.
+  - F/T keybinds kept functional in code (not removed) but no longer
+    advertised anywhere live — they're "bonus" shortcuts now, to be
+    mentioned in the future help overlay instead.
+  - Floating action panel removed entirely: `draw_action_panel()` deleted
+    from `game/renderer.py` (no planned reuse, unlike `render_player_name`/
+    `render_keybinds` which stay defined-but-unused) and its call site/state
+    removed from `main.py`.
+- Time HUD rebuilt and relocated: same width as the resource panel (208px),
+  stacked directly above it in the bottom-right column (where the action
+  panel used to sit). Initially given a backing panel matching the resource
+  panel's style, then user asked to drop the box entirely ("didn't have one
+  originally, will look fine") — bar widened to fill the full width now that
+  there's no box padding to inset within.
+- Dev-speed badge moved top-right (was top-left at a fixed offset that
+  ended up sitting on top of the displacer beast after the issue-2 sprite
+  nudges). Acknowledged as a stopgap — `IDEAS.md` notes the help-menu
+  indicator should take over that spot once dev mode is retired pre-release.
+- User flagged that some kind of "ready" indicator for Forage/Tend is needed
+  soon (no visual cue currently exists now that the cooldown bars on the old
+  floating buttons are gone) — explicitly deferred to issue 6 (notification
+  marker redesign) rather than scoped here.
+- Player name placement still unresolved — no "bottom action area" concept
+  exists anymore now that Forage/Tend are click-only, so issue 3's original
+  plan ("readd near the bottom action area") no longer cleanly applies.
+  Open thread, not yet picked back up.
+
+**Issue 5 — druid sat awkwardly in front of the statue.**
+- Swapped druid and blink_dog's positions in `_SPRITE_LAYOUT`
+  (game/renderer.py) — druid moved to blink_dog's old spot (left-centre),
+  blink_dog took druid's old spot, then nudged left to clear the statue
+  (minor ~8px edge overlap accepted rather than chased further). Druid also
+  shrunk by 1/3 width (`0.111`→`0.074`) — user hadn't realised it was as
+  large as the displacer beast/owlbear.
+- Iterated position from there via a sequence of relative nudges given as
+  plain English ("20% of its height up", "2x its height down", "half its
+  width left", etc.) rather than fractions — each translated to a pixel
+  delta from the creature's actual rendered size (via `_load_sprite_raw()`
+  + aspect ratio) and applied as an edit to `_SPRITE_LAYOUT`, then rendered
+  and checked before the next round. One miscommunication mid-way: an
+  instruction to nudge from "the original positions" was first read as
+  pre-swap originals, actually meant the post-swap positions — caught and
+  corrected once flagged.
+  - Final: `"druid": (0.313, 0.547, 0.074)`,
+    `"blink_dog": (0.369, 0.727, 0.083)`.
+- Also caught mid-pass: an early round of this iteration was tested only via
+  a throwaway script (editing `r._SPRITE_LAYOUT` at runtime in a one-off
+  Python invocation) without writing the change to `game/renderer.py` —
+  user saw no change live and caught it. Lesson: when iterating on tunable
+  values like this, write to the source file immediately, don't render-test
+  in memory first and forget the actual edit.
+- **Bonus fix while in the area:** the moss_wisp/displacer_beast overlap
+  flagged during issue 2 (got worse from that issue's displacer_beast nudge,
+  pre-existing before that to a smaller degree) — nudged moss_wisp
+  `(0.198,0.210)`→`(0.209,0.182)` (10px right, 1/3 its height up per user's
+  instruction). Reduced the overlap from 35×36px to 25×18px, not fully
+  clear, but user confirmed it reads fine visually as-is (wisp floats
+  above/behind the beast's head, no jarring clash) — not chasing it further.
+
+Remaining: (6) "!" notification markers were placeholders and need a real
+treatment (now also expected to cover Forage/Tend readiness — flagged by
+user during issue 4 as needed "soon").
+
+**Issue 6 — "!" notification markers replaced with a pulsing silhouette halo.**
+- User wanted a halo that traces each sprite's actual outline (not a generic
+  blob), one flat colour for simplicity, pulsing, applied everywhere the old
+  `draw_notification` was (creatures: interact/event-ready; statue: grove
+  event pending OR tend-ready+affordable; druid: visitor event pending OR
+  forage-ready).
+- **Statue cutout extraction** — the statue has no separate sprite (baked
+  into background.png), so there was no alpha mask to build a silhouette
+  from. Attempted extracting one anyway via colour-threshold segmentation
+  (saturation-based, since the painted art's ambient green tint meant hue
+  didn't separate stone from grass) + morphological close (PIL MaxFilter/
+  MinFilter) + border flood-fill hole-fill + light feather. Took several
+  iterations (raw threshold was a noisy outline, not a filled silhouette;
+  aggressive erode+largest-component cleanup overcorrected and ate the
+  antlers/staff) before landing on a usable result — saved as
+  `assets/sprites/statue.png`. Not pixel-perfect (rough edges, slight green
+  tinge) but good enough since it only drives a blurred glow shape, never
+  displayed directly. User: "Almost for the statue — will try working with
+  AI as well" — open follow-up, not blocking.
+- `game/renderer.py`:
+  - `_SPRITE_LAYOUT["statue"]` added — position/size derived by mapping the
+    cutout's extraction-crop bbox through the same scale/crop transform
+    `_scaled_background()` uses, so the halo aligns with the statue's actual
+    position in the rendered background. Used only for halo placement;
+    `draw_statue()` still never blits this cutout image itself.
+  - `_make_silhouette()` / `_get_halo()` — colour the sprite's alpha mask
+    flat, scale up (`_HALO_SCALE`=1.18), blur via downscale/upscale
+    (`_HALO_BLUR_DIV`), pulse via `halo_pulse()` (reuses the existing
+    time_of_day-as-fast-oscillator pattern already used for blink_dog/
+    flumph/etc. animations).
+  - `draw_scene()` restructured: halo now drawn *before* each entity's sprite
+    blit (statue/druid/creatures) so it appears behind/around the art;
+    gained `statue_ready`/`druid_ready` params so `main.py` can pass the new
+    action-readiness state through (cooldown + affordability for tend,
+    cooldown only for forage).
+  - `draw_notification()` deleted entirely, no remaining references.
+- **Two rounds of visual fixes after user screenshots:**
+  1. Statue's halo covered its *entire* body, not just an outline — because
+     unlike creatures/druid (whose sprite gets redrawn on top of the halo,
+     naturally hiding the centre), nothing redraws on top of the statue's
+     halo. Fixed by punching the sprite's own footprint out of the blurred
+     ring (`pygame.mask`-based, see below) for every entity uniformly, not
+     just the statue — so the centre is always transparent and the
+     background/sprite-art-already-drawn shows through.
+  2. Several creatures (displacer beast especially) had visible flat/straight
+     edges in the halo where the sprite's silhouette touches its crop
+     bounding box (ears/tail/paws extending to the source art's edge).
+     Fixed by increasing blur strength (`_HALO_BLUR_DIV` 6→3) — there's no
+     curvature to recover from a hard-cropped edge, but a stronger blur
+     softens it into something that reads as rounded rather than cut off.
+- **Performance bug found via user report, not automated testing:** user
+  noticed a multi-second freeze at startup that wasn't there before. Root
+  cause: `_make_silhouette()`'s recolour step and the centre-punch step were
+  both pure-Python per-pixel loops (`get_at`/`set_at`) running at full raw
+  sprite resolution (~900px for several sprites) — ~6.7s total the first
+  time all 10 halos needed building in the same frame (confirmed by direct
+  benchmark, not just guessed). Rewrote both using `pygame.mask.from_surface()`
+  + a single `BLEND_RGBA_MULT` blit each — C-level, no per-pixel Python
+  access, no new dependency (considered numpy/`pygame.surfarray`, both
+  available in this dev environment, but introducing numpy to a module the
+  shipped game actually runs would break the project's stated "Pygame only"
+  tech stack for anyone else running/cloning the public repo, so used
+  pygame's own `mask` module instead). Brought the cold-start cost down to
+  ~0.45s — confirmed no perceptible freeze after the fix, both via direct
+  benchmark and live user confirmation. Visual output unchanged by the
+  rewrite (same mask-multiply logic, just vectorised instead of looped).
+
+**All 6 issues from the Session 13 HUD layout pass are now done.** Open
+threads carried forward: player name placement (issue 3, never resolved —
+see note there), statue halo quality (issue 6 — user may bring in an
+AI-generated statue cutout to replace the extracted one).
+- **Next:** back to the original Phase 5 IDEAS.md backlog — Shield rename,
+  resource storage caps, multi-box visual indicator, fullscreen toggle,
+  custom icon, text cross-reference pass, blink dog forage-pool bug.
+
+### Session 14 — [23.06.2026]
+**Phase 5 — Halo full-coverage fix; idle animation timing decoupled from game
+speed; new backlog items captured.**
+
+**Halo fix (follow-up to Session 13 issue 6).** The punch-out ring added to
+fix the statue's halo (Session 13) was applied to every entity, but the hole
+is fixed to a sprite's *base* layout position — for animated sprites (flumph
+bob, etc.) the moving sprite no longer always covered that fixed hole, so the
+ring's inner edge became visible at certain points in the animation cycle.
+Root cause: only the statue actually needs a punched ring (nothing else
+redraws on top of its halo); druid/creatures get their centre naturally
+covered every frame by their own sprite redraw, at wherever they currently
+are, animated or not. `game/renderer.py`: `_get_halo()`/`draw_halo()` gained
+a `punch_center` flag (default `False`); only the statue's `draw_halo()` call
+passes `punch_center=True`. Verified via rendered frames across a flumph bob
+cycle — no exposed ring edge at any phase.
+
+**Idle animation timing decoupled from game speed.** All idle animations
+(blink_dog flicker, flumph bob, moss_wisp drift, pixie flutter, displacer_beast
+ghost-offset, halo pulse) were keyed off `time_of_day`, which advances 60x
+faster under dev speed — meaning no single tuning constant could look right
+in both normal and dev mode (too slow normally, frantic in dev mode). Fixed
+by switching all of them to `anim_time` — real elapsed wall-clock seconds via
+`pygame.time.get_ticks()/1000.0` — which is completely unaffected by the
+dev-speed multiplier. Threaded through `draw_scene()` and every per-creature
+`draw_*()` function plus `halo_pulse()`; both `main.py` render call sites
+(main loop and the name-entry screen) now pass `anim_time` through.
+
+Also added idle "breathing" (a subtle vertical bob) to the four creatures
+that previously had no animation at all — owlbear, druid, stirge,
+pseudodragon — via a new `_breathe(anim_time, period, amplitude)` helper, and
+to displacer_beast alongside its existing ghost-offset effect.
+
+**Three rounds of speed tuning from live user feedback**, each value written
+to `game/renderer.py` and confirmed before the next round (per
+[[feedback_test_against_real_file]]):
+1. Initial: blink_dog 0.35s, flumph 2.5s, moss_wisp 3.0/4.0s, pixie 0.5s, halo
+   pulse 1.5s; breathing amplitude 2px, periods ~2.2–3.6s.
+2. User: blink dog/moss/flumph/pixie "too quick" except blink dog "too quick
+   in dev mode" specifically (symptom of the root cause above); breathing
+   "too big". Slowed the flicker/drift group to 0.75x speed (period x1.333:
+   blink_dog→0.467s, flumph→3.333s, moss_wisp→4.0/5.333s, pixie→0.667s) and
+   cut breathing amplitude 2px→1px with periods x1.2 slower.
+3. User: dog and pixie still way too fast (0.75x wasn't enough — much bigger
+   correction needed for those two specifically); moss/flumph "almost
+   perfect, slow a bit more"; breathing still read as "2 clicks up and 2
+   down" on a "three point line" — since amplitude is already at the 1px
+   floor (can't read as breathing at all below that), the fix was to space
+   the discrete pixel transitions further apart by roughly doubling the
+   breathing periods rather than reducing amplitude further. Final: blink_dog
+   1.0s, pixie 1.3s, moss_wisp 4.6/6.13s, flumph 3.83s; breathing periods
+   owlbear 6.0s, stirge 5.0s, pseudodragon 5.5s, displacer_beast 6.5s, druid
+   7.0s, all amplitude 1px. **Accepted.**
+
+**New backlog items captured this session** (not started — added to
+`IDEAS.md`):
+- Reconsider event/action menus for the statue and druid after all (Session
+  13 issue 4 concluded a menu wasn't needed; revisit given subsequent work).
+- Statue halo cleanup — the extracted `assets/sprites/statue.png` cutout
+  (Session 13) is rough; clean it up or replace with an AI-generated cutout.
+- Re-add player name display somewhere on-screen (removed in Session 13
+  issue 3, placement never resolved since).
+- Design the help/info menu for real (currently just a placeholder concept
+  in IDEAS.md, several features — keybinds, feed limits — are waiting on it).
+- Another design pass on the druid and owlbear sprites specifically — flagged
+  as reading most out of place against the rest of the art.
+- Reduce the flumph's sprite size.
+- **Next:** original Phase 5 IDEAS.md backlog (Shield rename, resource
+  storage caps, multi-box visual indicator, fullscreen toggle, custom icon,
+  text cross-reference pass, blink dog forage-pool bug) plus the six new
+  items above.

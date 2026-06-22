@@ -26,6 +26,16 @@ class ResourceTracker:
         "glamour": "Glamour", "protection": "Shield",
     }
 
+    # Slim HUD panel geometry — exposed so callers can position the panel
+    # relative to other bottom-right UI without duplicating its dimensions.
+    PANEL_BAR_W   = 80
+    PANEL_BAR_H   = 15
+    PANEL_PAD     = 8
+    PANEL_LABEL_W = 72
+    PANEL_VALUE_W = 46
+    PANEL_W = PANEL_LABEL_W + PANEL_BAR_W + PANEL_VALUE_W + PANEL_PAD * 2
+    PANEL_H = len(RESOURCES) * (PANEL_BAR_H + PANEL_PAD) + PANEL_PAD
+
     def __init__(self, config):
         self._cfg      = config
         self._rates    = config["resources"]["passive_base_rate_per_second"]
@@ -91,13 +101,14 @@ class ResourceTracker:
 
     def render(self, surface, font, x, y):
         import pygame
-        bar_w, bar_h = 220, 22
-        padding = 10
-        panel_w = bar_w + 155
-        panel_h = len(self.RESOURCES) * (bar_h + padding) + padding
+        bar_w, bar_h = self.PANEL_BAR_W, self.PANEL_BAR_H
+        padding      = self.PANEL_PAD
+        label_w      = self.PANEL_LABEL_W
+        panel_w      = self.PANEL_W
+        panel_h      = self.PANEL_H
 
         bg = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
-        bg.fill((20, 20, 30, 180))
+        bg.fill((20, 20, 30, 190))
         surface.blit(bg, (x, y))
 
         for i, name in enumerate(self.RESOURCES):
@@ -105,15 +116,15 @@ class ResourceTracker:
             row_y = y + padding + i * (bar_h + padding)
 
             label = font.render(self.DISPLAY_NAMES[name], True, self.LABEL_COLOURS[name])
-            surface.blit(label, (x + 8, row_y + 3))
+            surface.blit(label, (x + 6, row_y + 1))
 
-            bar_x = x + 90
-            pygame.draw.rect(surface, (50, 50, 60), (bar_x, row_y, bar_w, bar_h), border_radius=4)
+            bar_x = x + label_w
+            pygame.draw.rect(surface, (50, 50, 60), (bar_x, row_y, bar_w, bar_h), border_radius=3)
             fill = min(int(bar_w * (val / self.MAXES[name])), bar_w)
             if fill > 0:
-                pygame.draw.rect(surface, self.COLOURS[name], (bar_x, row_y, fill, bar_h), border_radius=4)
-            pygame.draw.rect(surface, (100, 100, 120), (bar_x, row_y, bar_w, bar_h), 1, border_radius=4)
+                pygame.draw.rect(surface, self.COLOURS[name], (bar_x, row_y, fill, bar_h), border_radius=3)
+            pygame.draw.rect(surface, (100, 100, 120), (bar_x, row_y, bar_w, bar_h), 1, border_radius=3)
 
-            num_text = f"{val:.0f}%" if name == "protection" else f"{val:.1f}"
+            num_text = f"{val:.0f}%" if name == "protection" else f"{val:.0f}"
             num = font.render(num_text, True, (220, 220, 220))
-            surface.blit(num, (bar_x + bar_w + 6, row_y + 3))
+            surface.blit(num, (bar_x + bar_w + 4, row_y + 1))

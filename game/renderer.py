@@ -23,15 +23,19 @@ _PERIOD_TINT = {
 # Sprite placement, fixed by the Session 11 composite mockup:
 # name -> (centre_x_frac, centre_y_frac, width_frac)
 _SPRITE_LAYOUT = {
-    "druid":           (0.452, 0.648, 0.111),
+    # Statue art is baked into the background (no _blit_sprite call uses this
+    # entry) — position/size derived from extracting a cutout of it for the
+    # halo silhouette only. See assets/sprites/statue.png.
+    "statue":          (0.470, 0.491, 0.1875),
+    "druid":           (0.313, 0.547, 0.074),
     "stirge":          (0.633, 0.618, 0.076),
-    "blink_dog":       (0.294, 0.565, 0.083),
-    "owlbear":         (0.105, 0.702, 0.160),
+    "blink_dog":       (0.369, 0.727, 0.083),
+    "owlbear":         (0.105, 0.670, 0.160),
     "pseudodragon":    (0.700, 0.203, 0.077),
-    "flumph":          (0.897, 0.351, 0.090),
-    "moss_wisp":       (0.198, 0.210, 0.062),
+    "flumph":          (0.870, 0.351, 0.090),
+    "moss_wisp":       (0.209, 0.182, 0.062),
     "pixie":           (0.959, 0.232, 0.049),
-    "displacer_beast": (0.107, 0.382, 0.198),
+    "displacer_beast": (0.107, 0.350, 0.198),
 }
 
 _bg_cache             = {}
@@ -209,8 +213,20 @@ def druid_rect(screen_w, screen_h):
     return sprite_rect("druid", screen_w, screen_h)
 
 
-def draw_druid(surface, period, screen_w, screen_h):
-    _blit_sprite(surface, "druid", screen_w, screen_h)
+# All idle-animation timings below are driven by anim_time — real elapsed
+# seconds (pygame.time.get_ticks()/1000), NOT time_of_day/game time. They used
+# to be keyed off time_of_day, which advances 60x faster under dev speed; that
+# made every idle animation either too slow at normal speed or frantic in dev
+# mode, with no single constant that worked for both. anim_time is immune to
+# the dev-speed multiplier, so animation speed now reads the same in both.
+
+def _breathe(anim_time, period, amplitude):
+    return round(math.sin(anim_time * 2 * math.pi / period) * amplitude)
+
+
+def draw_druid(surface, period, screen_w, screen_h, anim_time=0.0):
+    breath = _breathe(anim_time, 7.0, 1)
+    _blit_sprite(surface, "druid", screen_w, screen_h, offset=(0, breath))
 
 
 # ------------------------------------------------------------------
@@ -224,10 +240,11 @@ def stirge_rect(screen_w, screen_h):
     return sprite_rect("stirge", screen_w, screen_h)
 
 
-def draw_stirge(surface, screen_w, screen_h, period, is_present):
+def draw_stirge(surface, screen_w, screen_h, period, is_present, anim_time=0.0):
     if not is_present:
         return
-    _blit_sprite(surface, "stirge", screen_w, screen_h)
+    breath = _breathe(anim_time, 5.0, 1)
+    _blit_sprite(surface, "stirge", screen_w, screen_h, offset=(0, breath))
 
 
 # ------------------------------------------------------------------
@@ -241,10 +258,10 @@ def blink_dog_rect(screen_w, screen_h):
     return sprite_rect("blink_dog", screen_w, screen_h)
 
 
-def draw_blink_dog(surface, screen_w, screen_h, period, is_present, time_of_day):
+def draw_blink_dog(surface, screen_w, screen_h, period, is_present, anim_time):
     if not is_present:
         return
-    flicker = round(math.sin(time_of_day * math.pi * 40) * 1.5)
+    flicker = _breathe(anim_time, 1.0, 1.5)
     _blit_sprite(surface, "blink_dog", screen_w, screen_h, offset=(flicker, 0))
 
 
@@ -259,10 +276,11 @@ def owlbear_rect(screen_w, screen_h):
     return sprite_rect("owlbear", screen_w, screen_h)
 
 
-def draw_owlbear(surface, screen_w, screen_h, period, is_present):
+def draw_owlbear(surface, screen_w, screen_h, period, is_present, anim_time=0.0):
     if not is_present:
         return
-    _blit_sprite(surface, "owlbear", screen_w, screen_h)
+    breath = _breathe(anim_time, 6.0, 1)
+    _blit_sprite(surface, "owlbear", screen_w, screen_h, offset=(0, breath))
 
 
 # ------------------------------------------------------------------
@@ -276,10 +294,11 @@ def pseudodragon_rect(screen_w, screen_h):
     return sprite_rect("pseudodragon", screen_w, screen_h)
 
 
-def draw_pseudodragon(surface, screen_w, screen_h, period, is_present):
+def draw_pseudodragon(surface, screen_w, screen_h, period, is_present, anim_time=0.0):
     if not is_present:
         return
-    _blit_sprite(surface, "pseudodragon", screen_w, screen_h)
+    breath = _breathe(anim_time, 5.5, 1)
+    _blit_sprite(surface, "pseudodragon", screen_w, screen_h, offset=(0, breath))
 
 
 # ------------------------------------------------------------------
@@ -293,10 +312,10 @@ def flumph_rect(screen_w, screen_h):
     return sprite_rect("flumph", screen_w, screen_h)
 
 
-def draw_flumph(surface, screen_w, screen_h, period, is_present, time_of_day):
+def draw_flumph(surface, screen_w, screen_h, period, is_present, anim_time):
     if not is_present:
         return
-    bob = round(math.sin(time_of_day * math.pi * 6) * 4)
+    bob = _breathe(anim_time, 3.83, 4)
     _blit_sprite(surface, "flumph", screen_w, screen_h, offset=(0, bob))
 
 
@@ -311,11 +330,11 @@ def moss_wisp_rect(screen_w, screen_h):
     return sprite_rect("moss_wisp", screen_w, screen_h)
 
 
-def draw_moss_wisp(surface, screen_w, screen_h, period, is_present, time_of_day):
+def draw_moss_wisp(surface, screen_w, screen_h, period, is_present, anim_time):
     if not is_present:
         return
-    drift_x = round(math.sin(time_of_day * math.pi * 2.3) * 3)
-    drift_y = round(math.cos(time_of_day * math.pi * 1.7) * 3)
+    drift_x = round(math.sin(anim_time * 2 * math.pi / 4.6) * 3)
+    drift_y = round(math.cos(anim_time * 2 * math.pi / 6.13) * 3)
     _blit_sprite(surface, "moss_wisp", screen_w, screen_h, offset=(drift_x, drift_y))
 
 
@@ -330,10 +349,10 @@ def pixie_rect(screen_w, screen_h):
     return sprite_rect("pixie", screen_w, screen_h)
 
 
-def draw_pixie(surface, screen_w, screen_h, period, is_present, time_of_day):
+def draw_pixie(surface, screen_w, screen_h, period, is_present, anim_time):
     if not is_present:
         return
-    flutter = round(math.sin(time_of_day * math.pi * 12) * 3)
+    flutter = _breathe(anim_time, 1.3, 3)
     _blit_sprite(surface, "pixie", screen_w, screen_h, offset=(0, flutter))
 
 
@@ -348,25 +367,132 @@ def displacer_beast_rect(screen_w, screen_h):
     return sprite_rect("displacer_beast", screen_w, screen_h)
 
 
-def draw_displacer_beast(surface, screen_w, screen_h, period, is_present, time_of_day):
+def draw_displacer_beast(surface, screen_w, screen_h, period, is_present, anim_time):
     if not is_present:
         return
-    ghost_x = round(math.sin(time_of_day * math.pi * 3) * 6) + 10
+    ghost_x = _breathe(anim_time, 2.5, 6) + 10
+    breath  = _breathe(anim_time, 6.5, 1)
     _blit_sprite(surface, "displacer_beast", screen_w, screen_h,
-                 offset=(ghost_x, 0), alpha=50)
-    _blit_sprite(surface, "displacer_beast", screen_w, screen_h)
+                 offset=(ghost_x, breath), alpha=50)
+    _blit_sprite(surface, "displacer_beast", screen_w, screen_h, offset=(0, breath))
 
 
 # ------------------------------------------------------------------
-# Notification marker
-#
-# Placeholder "!" — used for both "ready to interact" and "event available".
-# Final visual TBD; (x, y) is the bottom-centre anchor point.
+# Halo — pulsing glow tracing a sprite's silhouette, shown whenever there's
+# something to do with it (interact/event ready on a creature, grove event
+# or tend-ready on the statue, visitor event or forage-ready on the druid).
+# Replaces the old placeholder "!" marker everywhere.
 
-def draw_notification(surface, x, y):
-    col = (230, 200, 110)
-    pygame.draw.rect(surface, col, (x - 2, y - 14, 4, 9), border_radius=1)
-    pygame.draw.circle(surface, col, (x, y - 2), 2)
+_HALO_COLOR      = (255, 225, 140)
+_HALO_SCALE      = 1.18
+_HALO_BLUR_DIV   = 3   # higher blur softens flat edges (sprite touching its crop bbox) into curves
+_HALO_PULSE_PERIOD = 1.5   # real seconds per pulse cycle, independent of dev speed
+
+_silhouette_cache = {}
+_halo_cache       = {}
+
+
+def _make_silhouette(raw, color):
+    """
+    One-time per (sprite, colour): flat-colour silhouette matching raw's alpha
+    mask. Built via pygame.mask + a single BLEND_RGBA_MULT blit rather than a
+    per-pixel Python loop — at raw sprite resolution (~900px) the per-pixel
+    loop took multiple seconds per sprite and froze startup.
+    """
+    sil = pygame.Surface(raw.get_size(), pygame.SRCALPHA)
+    sil.fill((*color, 255))
+    mask_surf = pygame.mask.from_surface(raw).to_surface(
+        setcolor=(255, 255, 255, 255), unsetcolor=(255, 255, 255, 0))
+    sil.blit(mask_surf, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+    return sil
+
+
+def _get_halo(name, target_w, color=_HALO_COLOR, punch_center=False):
+    key = (name, target_w, color, punch_center)
+    surf = _halo_cache.get(key)
+    if surf is None:
+        raw = _load_sprite_raw(name)
+        sil = _silhouette_cache.get((name, color))
+        if sil is None:
+            sil = _make_silhouette(raw, color)
+            _silhouette_cache[(name, color)] = sil
+
+        halo_w = max(1, round(target_w * _HALO_SCALE))
+        halo_h = max(1, round(raw.get_height() * (halo_w / raw.get_width())))
+        scaled = pygame.transform.smoothscale(sil, (halo_w, halo_h))
+
+        small_w = max(1, halo_w // _HALO_BLUR_DIV)
+        small_h = max(1, halo_h // _HALO_BLUR_DIV)
+        blurred = pygame.transform.smoothscale(
+            pygame.transform.smoothscale(scaled, (small_w, small_h)), (halo_w, halo_h))
+
+        # Punch the sprite's own footprint out of the blurred ring, so only the
+        # glow outside it shows. Only needed for entities nothing redraws on
+        # top of the halo (the statue) — for animated sprites (druid,
+        # creatures), their own redraw each frame already covers the centre
+        # at wherever they *currently* are, including idle-animation offsets;
+        # punching a hole fixed to the base layout position instead exposed
+        # the ring's inner edge whenever the sprite bobbed/drifted away from
+        # that fixed spot (e.g. flumph).
+        if punch_center:
+            inner_w = max(1, target_w)
+            inner_h = max(1, round(raw.get_height() * (inner_w / raw.get_width())))
+            inner = pygame.transform.smoothscale(raw, (inner_w, inner_h))
+            ox, oy = (halo_w - inner_w) // 2, (halo_h - inner_h) // 2
+            punch = pygame.mask.from_surface(inner).to_surface(
+                setcolor=(255, 255, 255, 0), unsetcolor=(255, 255, 255, 255))
+            blurred.blit(punch, (ox, oy), special_flags=pygame.BLEND_RGBA_MULT)
+
+        surf = blurred
+        _halo_cache[key] = surf
+    return surf
+
+
+def halo_pulse(anim_time):
+    return 0.5 + 0.5 * math.sin(anim_time * 2 * math.pi / _HALO_PULSE_PERIOD)
+
+
+def draw_halo(surface, name, screen_w, screen_h, pulse, punch_center=False):
+    cx_f, cy_f, w_f = _SPRITE_LAYOUT[name]
+    cx, cy   = round(cx_f * screen_w), round(cy_f * screen_h)
+    target_w = max(1, round(w_f * screen_w))
+    halo     = _get_halo(name, target_w, punch_center=punch_center).copy()
+    halo.set_alpha(int(110 + 90 * pulse))
+    surface.blit(halo, (cx - halo.get_width() // 2, cy - halo.get_height() // 2))
+
+
+# ------------------------------------------------------------------
+# Bond bar — small segmented bar under a present creature's sprite,
+# replacing the old sidebar bond-status list.
+
+_BOND_SEG_W = 13
+_BOND_SEG_H = 5
+_BOND_GAP   = 1
+_BOND_MAX   = 3
+
+# Some sprites have a lot of transparent "air" below their visual mass
+# (e.g. flumph's tapering tentacle tips), which pads out their bounding-box
+# bottom — pull the bar up closer to the body for those.
+_BOND_BAR_GAP = 4
+_BOND_BAR_GAP_OVERRIDE = {
+    "blink_dog": -4,
+    "flumph":    -16,
+}
+
+
+def draw_bond_bar(surface, anchor_x, top_y, bond_level, flashing=False):
+    total_w = _BOND_MAX * _BOND_SEG_W + (_BOND_MAX - 1) * _BOND_GAP
+    x = anchor_x - total_w // 2
+
+    fill_col   = (255, 240, 180) if flashing else (210, 180, 90)
+    empty_col  = (40, 40, 40)
+    border_col = (15, 15, 15)
+
+    for i in range(_BOND_MAX):
+        sx = x + i * (_BOND_SEG_W + _BOND_GAP)
+        col = fill_col if i < bond_level else empty_col
+        pygame.draw.rect(surface, col, (sx, top_y, _BOND_SEG_W, _BOND_SEG_H))
+        pygame.draw.rect(surface, border_col, (sx, top_y, _BOND_SEG_W, _BOND_SEG_H), 1)
 
 
 # ------------------------------------------------------------------
@@ -408,55 +534,6 @@ def draw_dialogue(surface, font, text, anchor_x, anchor_y):
                         [(anchor_x - 4, by + bh),
                          (anchor_x + 4, by + bh),
                          (anchor_x,     by + bh + 8)])
-
-
-# ------------------------------------------------------------------
-# Action panel (bottom-right)
-
-def draw_action_panel(surface, font, screen_w, screen_h, actions, bottom=None):
-    """
-    actions: list of (label, key_hint, cooldown_fraction, available)
-    cooldown_fraction: 0.0 = ready, 1.0 = just used
-    bottom: y coordinate for panel's bottom edge (defaults to screen_h - 12)
-    """
-    pad    = 8
-    btn_w  = 160
-    btn_h  = 28
-    gap    = 6
-    total_h = len(actions) * (btn_h + gap) - gap + pad * 2
-    total_w = btn_w + pad * 2
-
-    panel_bottom = (bottom if bottom is not None else screen_h - 12)
-    panel_x = screen_w - total_w - 12
-    panel_y = panel_bottom - total_h
-
-    bg = pygame.Surface((total_w, total_h), pygame.SRCALPHA)
-    bg.fill((15, 20, 15, 180))
-    surface.blit(bg, (panel_x, panel_y))
-
-    for i, (label, key_hint, cd_frac, available) in enumerate(actions):
-        bx = panel_x + pad
-        by = panel_y + pad + i * (btn_h + gap)
-
-        col = (40, 60, 35) if available else (30, 35, 30)
-        pygame.draw.rect(surface, col, (bx, by, btn_w, btn_h), border_radius=3)
-        pygame.draw.rect(surface, (60, 80, 55), (bx, by, btn_w, btn_h), 1, border_radius=3)
-
-        # Cooldown overlay
-        if cd_frac > 0:
-            cd_w = int(btn_w * cd_frac)
-            cd_surf = pygame.Surface((cd_w, btn_h), pygame.SRCALPHA)
-            cd_surf.fill((0, 0, 0, 100))
-            surface.blit(cd_surf, (bx, by))
-
-        text_col = (200, 220, 180) if available else (100, 110, 95)
-        hint_col = (130, 150, 110) if available else (70, 80, 65)
-
-        lbl = font.render(label, True, text_col)
-        hint = font.render(key_hint, True, hint_col)
-        surface.blit(lbl,  (bx + 8,           by + (btn_h - lbl.get_height()) // 2))
-        surface.blit(hint, (bx + btn_w - hint.get_width() - 6,
-                            by + (btn_h - hint.get_height()) // 2))
 
 
 # ------------------------------------------------------------------
@@ -631,7 +708,7 @@ _TB_MARGIN = 20
 
 
 def draw_text_box(surface, font, font_sm, speaker, text, options,
-                  hover_idx, screen_w, screen_h):
+                  hover_idx, screen_w, screen_h, right_inset=0):
     """
     Fixed bottom panel. Two modes:
       options mode — options is a non-empty list of (label, detail, available);
@@ -639,10 +716,14 @@ def draw_text_box(surface, font, font_sm, speaker, text, options,
       text mode    — text is a string, options is None or [];
                      returns [].
     Only call when there is content to show.
+
+    right_inset: extra space reserved on the right (e.g. for the resource
+    panel sharing the same row) — shrinks the box width without moving its
+    left edge.
     """
     bx = _TB_MARGIN
     by = screen_h - _TB_H - _TB_MARGIN
-    bw = screen_w - _TB_MARGIN * 2
+    bw = screen_w - _TB_MARGIN * 2 - right_inset
 
     bg = pygame.Surface((bw, _TB_H), pygame.SRCALPHA)
     bg.fill((10, 18, 10, 220))
@@ -702,11 +783,11 @@ def draw_text_box(surface, font, font_sm, speaker, text, options,
     return item_rects
 
 
-def text_box_item_rects(font_sm, speaker, n_options, screen_w, screen_h):
+def text_box_item_rects(font_sm, speaker, n_options, screen_w, screen_h, right_inset=0):
     """Returns option rects for text box options mode without drawing."""
     bx        = _TB_MARGIN
     by        = screen_h - _TB_H - _TB_MARGIN
-    bw        = screen_w - _TB_MARGIN * 2
+    bw        = screen_w - _TB_MARGIN * 2 - right_inset
     label_h   = (font_sm.get_linesize() + 4) if speaker else 0
     content_y = by + _TB_PAD + label_h
     return [
@@ -768,57 +849,65 @@ def draw_motes(surface, period, time_of_day, screen_w, screen_h):
 # Master scene draw
 
 def draw_scene(surface, period, time_of_day, screen_w, screen_h,
-               creatures=None, events=None, areas=None):
+               creatures=None, events=None, areas=None,
+               statue_ready=False, druid_ready=False, anim_time=0.0):
     draw_background(surface, period, screen_w, screen_h, areas)
+
+    pulse = halo_pulse(anim_time)
+
+    statue_glow = bool(events and events.grove_pending_event) or statue_ready
+    if statue_glow:
+        draw_halo(surface, "statue", screen_w, screen_h, pulse, punch_center=True)
     draw_statue(surface, period, screen_w, screen_h)
-    draw_druid(surface, period, screen_w, screen_h)
+
+    druid_glow = bool(events and events.visitor_pending_event) or druid_ready
+    if druid_glow:
+        draw_halo(surface, "druid", screen_w, screen_h, pulse)
+    draw_druid(surface, period, screen_w, screen_h, anim_time)
 
     if creatures:
         for name in ("stirge", "blink_dog", "owlbear", "pseudodragon",
                      "flumph", "moss_wisp", "pixie", "displacer_beast"):
             c = creatures.get(name)
-            if not c:
+            if not c or not c.is_present:
                 continue
+
+            if c.can_interact or c.has_event:
+                draw_halo(surface, name, screen_w, screen_h, pulse)
+
             if name == "stirge":
-                draw_stirge(surface, screen_w, screen_h, period, c.is_present)
+                draw_stirge(surface, screen_w, screen_h, period, c.is_present, anim_time)
                 rect = stirge_rect(screen_w, screen_h)
             elif name == "blink_dog":
                 draw_blink_dog(surface, screen_w, screen_h, period,
-                               c.is_present, time_of_day)
+                               c.is_present, anim_time)
                 rect = blink_dog_rect(screen_w, screen_h)
             elif name == "owlbear":
-                draw_owlbear(surface, screen_w, screen_h, period, c.is_present)
+                draw_owlbear(surface, screen_w, screen_h, period, c.is_present, anim_time)
                 rect = owlbear_rect(screen_w, screen_h)
             elif name == "pseudodragon":
-                draw_pseudodragon(surface, screen_w, screen_h, period, c.is_present)
+                draw_pseudodragon(surface, screen_w, screen_h, period, c.is_present, anim_time)
                 rect = pseudodragon_rect(screen_w, screen_h)
             elif name == "flumph":
                 draw_flumph(surface, screen_w, screen_h, period,
-                            c.is_present, time_of_day)
+                            c.is_present, anim_time)
                 rect = flumph_rect(screen_w, screen_h)
             elif name == "moss_wisp":
                 draw_moss_wisp(surface, screen_w, screen_h, period,
-                               c.is_present, time_of_day)
+                               c.is_present, anim_time)
                 rect = moss_wisp_rect(screen_w, screen_h)
             elif name == "pixie":
                 draw_pixie(surface, screen_w, screen_h, period,
-                           c.is_present, time_of_day)
+                           c.is_present, anim_time)
                 rect = pixie_rect(screen_w, screen_h)
             elif name == "displacer_beast":
                 draw_displacer_beast(surface, screen_w, screen_h, period,
-                                     c.is_present, time_of_day)
+                                     c.is_present, anim_time)
                 rect = displacer_beast_rect(screen_w, screen_h)
 
-            if c.is_present and (c.can_interact or c.has_event):
-                draw_notification(surface, rect.centerx, rect.top - 4)
-
-    if events:
-        if events.grove_pending_event:
-            rect = statue_rect(screen_w, screen_h)
-            draw_notification(surface, rect.centerx, rect.top - 4)
-        if events.visitor_pending_event:
-            rect = druid_rect(screen_w, screen_h)
-            draw_notification(surface, rect.centerx, rect.top - 4)
+            gap = _BOND_BAR_GAP_OVERRIDE.get(name, _BOND_BAR_GAP)
+            draw_bond_bar(surface, rect.centerx, rect.bottom + gap,
+                          c.bond_level, flashing=c.bond_flash_ttl > 0)
 
     draw_period_tint(surface, period, screen_w, screen_h)
     draw_motes(surface, period, time_of_day, screen_w, screen_h)

@@ -14,7 +14,7 @@ from game.events import Events
 from game import save_load
 from game import dialogue as dlg
 from game.renderer import (
-    draw_scene, draw_action_panel,
+    draw_scene,
     draw_text_box, draw_center_flash, text_box_item_rects,
     draw_areas_panel,
     stirge_rect, stirge_pos,
@@ -67,7 +67,8 @@ def run_name_entry(screen, game_surf, clock, config, blit_x, blit_y,
                     name += event.unicode
 
         # Background: always dawn for the opening screen
-        draw_scene(game_surf, "dawn", 0.05, game_w, game_h, areas=areas)
+        draw_scene(game_surf, "dawn", 0.05, game_w, game_h, areas=areas,
+                   anim_time=pygame.time.get_ticks() / 1000.0)
 
         pw, ph = 420, 170
         px = (game_w - pw) // 2
@@ -111,22 +112,30 @@ def render_resource_hud(surface, font, font_sm, resources, x, y):
     resources.render(surface, font, x, y)
 
 
-def render_time_hud(surface, font_sm, time_sys, x, y):
+TIME_HUD_BAR_H = 10
+
+
+def time_hud_height():
+    return 16 + 4 + TIME_HUD_BAR_H
+
+
+def render_time_hud(surface, font_sm, time_sys, x, y, width):
     period = time_sys.period
     tod    = time_sys.time_of_day
 
-    bar_w = 200
-    pygame.draw.rect(surface, (40, 40, 50), (x, y, bar_w, 12), border_radius=6)
+    label = font_sm.render(f"Day {time_sys.day_number}  —  {period.capitalize()}",
+                           True, WHITE)
+    surface.blit(label, (x, y))
+
+    bar_y = y + 16 + 4
+    bar_w = width
+    pygame.draw.rect(surface, (40, 40, 50), (x, bar_y, bar_w, TIME_HUD_BAR_H), border_radius=4)
     fill = int(bar_w * tod)
     arc_col = {"dawn": (230, 160, 80), "day": (220, 200, 100),
                "dusk": (200, 100, 50), "night": (60, 60, 130)}[period]
     if fill > 0:
-        pygame.draw.rect(surface, arc_col, (x, y, fill, 12), border_radius=6)
-    pygame.draw.rect(surface, (80, 80, 90), (x, y, bar_w, 12), 1, border_radius=6)
-
-    label = font_sm.render(f"Day {time_sys.day_number}  —  {period.capitalize()}",
-                           True, WHITE)
-    surface.blit(label, (x, y + 16))
+        pygame.draw.rect(surface, arc_col, (x, bar_y, fill, TIME_HUD_BAR_H), border_radius=4)
+    pygame.draw.rect(surface, (80, 80, 90), (x, bar_y, bar_w, TIME_HUD_BAR_H), 1, border_radius=4)
 
 
 def render_player_name(surface, font_sm, name, x, y):
@@ -153,14 +162,6 @@ def render_keybinds(surface, font_sm, x, y, right_align=False):
         surface.blit(t, (blit_x, y + i * 18))
 
 
-def render_bond_status(surface, font_sm, creatures, x, y):
-    for i, c in enumerate(creatures.present()):
-        label    = c.name.replace("_", " ").title()
-        bond     = "[" + "*" * c.bond_level + "-" * (3 - c.bond_level) + "]"
-        flashing = c.bond_flash_ttl > 0
-        colour   = (240, 230, 130) if flashing else (170, 195, 150)
-        text     = font_sm.render(f"{label}  {bond}  {c.feed_indicator}", True, colour)
-        surface.blit(text, (x, y + i * 18))
 
 
 # ------------------------------------------------------------------
@@ -241,6 +242,18 @@ def main():
     forage_cd_max    = action_cfg["forage"]["cooldown_real_seconds"]
     tend_cd_max      = action_cfg["tend_statue"]["cooldown_real_seconds"]
 
+    # Bottom-right HUD column: resource panel shares a right margin with the
+    # message box, which loses width to make room (right_inset). Time HUD
+    # stacks directly above the resource panel, same width.
+    RES_PANEL_MARGIN = 20
+    RES_PANEL_GAP    = 10
+    TIME_HUD_GAP     = 6
+    res_panel_x      = game_w - resources.PANEL_W - RES_PANEL_MARGIN
+    res_panel_y      = (game_h - RES_PANEL_MARGIN) - resources.PANEL_H
+    text_box_right_inset = resources.PANEL_W + RES_PANEL_GAP
+    time_hud_x       = res_panel_x
+    time_hud_y       = res_panel_y - TIME_HUD_GAP - time_hud_height()
+
     text_box          = None   # {"mode":"options"|"text","speaker":str,"text":str,
                                #  "creature":c|None,"pool":...,"feed_pool":...,"ttl":float,"hover":int}
     show_areas_panel  = False
@@ -313,7 +326,8 @@ def main():
                     gx, gy = mx - blit_x, my - blit_y
                     opts  = _creature_menu_options(text_box["creature"], resources, config)
                     rects = text_box_item_rects(
-                        font_sm, text_box["speaker"], len(opts), game_w, game_h)
+                        font_sm, text_box["speaker"], len(opts), game_w, game_h,
+                        right_inset=text_box_right_inset)
                     text_box["hover"] = next(
                         (i for i, r in enumerate(rects) if r.collidepoint(gx, gy)), -1)
 
@@ -387,7 +401,8 @@ def main():
                     creature = text_box["creature"]
                     opts  = _creature_menu_options(creature, resources, config)
                     rects = text_box_item_rects(
-                        font_sm, text_box["speaker"], len(opts), game_w, game_h)
+                        font_sm, text_box["speaker"], len(opts), game_w, game_h,
+                        right_inset=text_box_right_inset)
                     acted = False
                     for r, (label, _, available) in zip(rects, opts):
                         if r.collidepoint(gx, gy) and available:
@@ -454,10 +469,18 @@ def main():
                                 center_flash_text = "Not enough glamour to tend the statue."
                                 center_flash_ttl  = 3.0
 
-                    elif (not clicked_creature and events.visitor_pending_event
-                          and dr_rect.collidepoint(gx, gy)):
-                        boxes    = events.visitor_pending_event["boxes"]
-                        text_box = _visitor_text(boxes[0], events.visitor_display_name(), boxes)
+                    elif not clicked_creature and dr_rect.collidepoint(gx, gy):
+                        if events.visitor_pending_event:
+                            boxes    = events.visitor_pending_event["boxes"]
+                            text_box = _visitor_text(boxes[0], events.visitor_display_name(), boxes)
+                        elif forage_cd <= 0:
+                            fc = action_cfg["forage"]
+                            resources.add("forage",    fc["forage_yield"])
+                            resources.add("heartwood", fc["heartwood_yield"])
+                            if random.random() < fc["glamour_chance"]:
+                                resources.add("glamour", fc["glamour_yield"])
+                            forage_cd = forage_cd_max
+                            text_box  = _grove_text(dlg.pick(dlg.FORAGE))
 
         # ---- Update ----
         time_sys.update(dt_real)
@@ -487,30 +510,31 @@ def main():
             last_autosave = now
 
         # ---- Render ----
+        statue_ready = tend_cd <= 0 and resources.glamour >= action_cfg["tend_statue"]["glamour_cost"]
+        druid_ready  = forage_cd <= 0
         draw_scene(game_surf, time_sys.period, time_sys.time_of_day,
-                   game_w, game_h, creatures, events, areas)
+                   game_w, game_h, creatures, events, areas,
+                   statue_ready=statue_ready, druid_ready=druid_ready,
+                   anim_time=pygame.time.get_ticks() / 1000.0)
 
-        # Title + player name
+        # Title
         title = font_lg.render("The Grove", True, (200, 230, 180))
         game_surf.blit(title, (20, 16))
-        render_player_name(game_surf, font_sm, player_name,
-                           game_w - font_sm.size(player_name)[0] - 14, 18)
+        # Player name removed for now — placement TBD (issue 3/4 follow-up).
+        # Keybind cheat sheet removed entirely — moving to the future
+        # info/help overlay (see IDEAS.md). Forage/Tend are now click-only
+        # (druid/statue), F/T keys still work as undocumented shortcuts.
 
-        # Resource bars
-        resources.render(game_surf, font, 20, 46)
+        # Resource bars — bottom-right corner, sharing a row with the message box
+        resources.render(game_surf, font_sm, res_panel_x, res_panel_y)
 
-        # Time HUD (bar + "Day N — Period" label)
-        # Resource panel: 4 rows × 32px + 10px padding = 138px, starts at y=46 → ends at 184
-        render_time_hud(game_surf, font_sm, time_sys, 20, 196)
+        # Time HUD — stacked directly above the resource panel, same width
+        render_time_hud(game_surf, font_sm, time_sys, time_hud_x, time_hud_y, resources.PANEL_W)
 
-        # Bond status — below time label (label is at 196+16=212)
-        bond_y = 232
-        render_bond_status(game_surf, font_sm, creatures, 20, bond_y)
-
-        # Dev badge sits below the last bond line
-        bond_end_y = bond_y + max(len(creatures.present()), 1) * 18
+        # Dev badge — top-right (top-left now sits over the displacer beast)
         if time_sys.dev_speed:
-            render_dev_badge(game_surf, font_sm, 20, bond_end_y + 6)
+            badge_text = "DEV SPEED  [D]"
+            render_dev_badge(game_surf, font_sm, game_w - font_sm.size(badge_text)[0] - 14, 36)
 
         # Areas restoration panel
         if show_areas_panel:
@@ -523,23 +547,13 @@ def main():
                     if text_box["mode"] == "options" else [])
             draw_text_box(game_surf, font, font_sm,
                           text_box["speaker"], text_box["text"],
-                          opts, text_box["hover"], game_w, game_h)
+                          opts, text_box["hover"], game_w, game_h,
+                          right_inset=text_box_right_inset)
 
         # Centre flash (errors, save confirmation)
         if center_flash_ttl > 0:
             alpha = int(255 * min(1.0, center_flash_ttl))
             draw_center_flash(game_surf, font_sm, center_flash_text, alpha, game_w, game_h)
-
-        # Action panel — anchored above the text box
-        forage_avail = forage_cd <= 0
-        tend_avail   = tend_cd   <= 0
-        draw_action_panel(game_surf, font_sm, game_w, game_h, [
-            ("Forage",       "[F]", forage_cd / forage_cd_max if forage_cd > 0 else 0.0, forage_avail),
-            ("Tend Statue",  "[T]", tend_cd   / tend_cd_max   if tend_cd   > 0 else 0.0, tend_avail),
-        ], bottom=game_h - 120 - 12)
-
-        # Keybinds — top-right, below player name
-        render_keybinds(game_surf, font_sm, game_w - 14, 36, right_align=True)
 
         if fullscreen:
             screen.fill((0, 0, 0))

@@ -75,3 +75,56 @@ Things to consider for later phases. Not current phase scope.
 - **Custom window icon** — replace the default Pygame icon with something
   grove-themed (a leaf, the Silvanus symbol). Low effort, nice finish.
   Defer to Phase 5 alongside other art tasks.
+
+---
+
+## UI / Info
+
+- **Info / help overlay** — a dedicated screen (key-bind TBD) showing controls,
+  per-creature feeding limits (feeds/day, cooldown), and other reference info
+  that used to live in the always-on HUD. Came up when the bond-status sidebar
+  was replaced with per-creature bond bars (Session 13) — feed status
+  (`Creature.feed_indicator`, game/creatures.py) no longer renders anywhere
+  in-game, so this is where it should resurface rather than being shown live.
+  Scope alongside the rest of the Phase 5 UI pass.
+
+- **Help-menu indicator takes over the dev-speed badge's spot** — the "DEV
+  SPEED [D]" badge currently sits top-right (Session 13) as a stopgap, since
+  dev mode is a development-only tool and that corner was empty. When dev
+  mode is eventually retired (pre-release), put the help-menu indicator/icon
+  in that same top-right spot instead.
+
+- **Help/info menu — actual design pass** — the "Info / help overlay" item
+  above has only ever been a placeholder concept (key-bind TBD, contents
+  sketched). Needs a real design pass: layout, what exactly it lists
+  (controls, feed limits, anything else retired from the live HUD), how it's
+  opened/closed. Several other parked items (keybinds cheat sheet, feed
+  indicator) are blocked on this actually existing. Flagged Session 14.
+
+- **Reconsider event/action menus for statue and druid** — Session 13 issue 4
+  deliberately concluded a popup menu (Forage/Tend/Event) wasn't needed,
+  extending the statue's existing event-if-pending-else-action click pattern
+  to the druid instead. Revisit after living with that decision longer —
+  flagged Session 14 as worth a second look, no specific complaint yet, just
+  "possibly add after all."
+
+- **Player name display — re-add somewhere on-screen** — removed from the
+  live HUD in Session 13 issue 3 (alongside the keybinds cheat sheet);
+  keybinds were folded into the future help menu, but the player name's
+  placement was never resolved and the thread went cold. Needs an actual home
+  on-screen. Flagged again Session 14.
+
+- **Statue halo cutout cleanup** — `assets/sprites/statue.png` (Session 13
+  issue 6) was extracted from the background art via colour-threshold
+  segmentation purely to drive the halo silhouette; it's rough (uneven edges,
+  slight green tinge) and only looks acceptable because the halo blurs it
+  heavily. Clean up the extraction or replace with an AI-generated cutout.
+
+- **Druid and owlbear sprite redesign pass** — of all 8 creatures + the
+  druid, these two read as most visually out of place against the rest of
+  the art (per user feedback, Session 14). Worth a dedicated look — possibly
+  new AI generation passes, similar to how owlbear/displacer_beast needed
+  reference images in Session 10.
+
+- **Reduce flumph sprite size** — flagged Session 14, not yet sized or
+  positioned.
