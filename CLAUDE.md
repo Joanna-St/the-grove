@@ -61,14 +61,14 @@ Full phase descriptions in design doc.
 **Phase 5 — Art & Polish**
 
 HUD layout pass (Session 13), idle animation/halo follow-ups (Session 14),
-dialogue box overflow + rune-disc controls (Session 15), and statue/druid
-event-action menus + Shield→Ward rename (Session 16) are done. Next step:
+dialogue box overflow + rune-disc controls (Session 15), statue/druid
+event-action menus + Shield→Ward rename (Session 16), and the statue
+click-rect fix + player name/help-menu UI (Session 17) are done. Next step:
 remaining UI polish items from IDEAS.md (resource storage caps, fullscreen
 toggle, custom icon, text cross-reference pass, blink dog forage pool bug,
-help/info menu design, player name placement, druid/owlbear sprite redesign,
-flumph size, dismiss-glyph zoom tuning, locked-area/statue manual tracing,
-day/night transition bug, sprite pixelation-consistency decision, event
-frequency tuning).
+druid/owlbear sprite redesign, flumph size, dismiss-glyph zoom tuning,
+locked-area/statue manual tracing, day/night transition bug, sprite
+pixelation-consistency decision, event frequency tuning).
 
 ## Phase 6 — Post-Launch Additions (not yet scoped)
 - Creature max-bond perks (design.md specs one per creature: Pseudodragon/Stirge early-warning, Flumph/Displacer Beast event dampening, Pixie wildcard intervention, Blink Dog yield boost, Moss Wisp grove-health-gated boost). Deliberately deferred post-launch — half of these assume a negative/threat tagging axis for grove + visitor events that doesn't exist yet (4c/4d shipped as pure flavour, no good/bad categorisation). Revisit scoping then.
@@ -757,3 +757,71 @@ the "Shield display name" item itself removed now that it's decided.
   Session 15 items: locked-area desaturation retrace, statue cutout retrace,
   day/night transition bug, sprite pixelation-consistency decision, and
   event/interaction frequency tuning).
+
+### Session 17 — [27.07.2026]
+**Phase 5 — Statue click-rect bug fixed; player name + two-tab help menu shipped.**
+
+**Statue click-rect fix.** User reported the statue's interaction area didn't
+match its visual position. Root cause: `statue_rect()` (game/renderer.py) and
+the halo's `_SPRITE_LAYOUT["statue"]` entry were two independently-defined
+positions that had drifted apart. `statue_rect()` used raw hardcoded screen
+fractions from Session 12 (never updated); `_SPRITE_LAYOUT["statue"]` was the
+one properly measured in Session 13 by mapping the pixel-extracted statue
+cutout through the background's actual scale/crop transform. Fix: rebuilt
+`statue_rect()` to just call the existing `sprite_rect("statue", ...)` helper
+— the same one `druid_rect`/`stirge_rect`/etc. already use — instead of
+maintaining a separate hand-rolled rect. Verified numerically (rect centre
+now exactly matches the halo position at multiple window sizes) and visually
+(rendered the rect over the actual background art).
+
+**Statue/druid menus — coexistence confirmed.** No code change, but worth
+noting: user confirmed dropping the old "event blocks action" exclusivity
+was correct — "it was needed specifically because it was anyone's choice
+which event we're going to trigger," meaning the old block was a leftover
+from before the menu existed, not a deliberate design rule.
+
+**Player name + help/info menu**, discussed and scoped before implementing:
+- Player name now renders as a small subtitle directly under "The Grove"
+  title, top-left — chosen specifically to avoid every collision problem
+  that sank the old top-right placement (dev badge, displacer beast sprite).
+- New `[H]` help/info menu, two tabs (Controls / Feeding), built on the same
+  dimmed-background-plus-centred-box pattern `draw_areas_panel` already
+  established rather than inventing new visual language. Tab switching is
+  click-only (click the tab header). Feeding tab content is pulled directly
+  from `config.json`'s per-creature `feeding` blocks, not hand-typed.
+  Controls tab deliberately excludes F/T (forage/tend bypass keys) and D
+  (dev speed) — both are intentionally unadvertised, dev speed especially
+  since it's a development-only tool that won't ship.
+- Discoverability handled two ways rather than one: the name-entry screen
+  gained a permanent "Press H anytime for help and controls" line (panel
+  grown 170→195px to fit it), and a persistent `[H] Help` hint now sits
+  top-right in the live HUD, stacked above the dev badge, vertically centred
+  against the title text (computed off the title's actual rendered height,
+  not a hardcoded offset, so it won't drift if the title or font ever
+  changes). This replaces the originally-parked IDEAS.md plan of waiting for
+  dev-speed retirement to claim that corner — the hint is just always there
+  now, dev badge or not.
+- Found and removed a dead `action_menu = None` line in the `R` key handler
+  — a leftover from the Session 13 floating-panel removal that never got
+  cleaned up (harmless, just cruft, caught while touching adjacent code).
+- **Two follow-up bugs caught by the user after first pass, both fixed same
+  session:** (1) the Feeding tab's three data columns (feeds/day, forage
+  cost, cooldown) were built as one right-aligned combined string per row,
+  so column position depended on each row's text length and nothing lined
+  up — fixed by switching to three fixed-x columns instead, one field per
+  column. (2) the cooldown column then overflowed the panel edge at its new
+  fixed position — fixed by measuring actual rendered text width for the
+  longest value in each column (`font_sm.size(...)`, not guessed) and
+  retightening the column x-offsets to fit inside `_HP_W` with margin.
+- Verified everything by rendering to throwaway PNGs and inspecting them
+  directly (both help-menu tabs, the name-entry screen, and the in-game
+  title/name/hint layout), not just trusting the code.
+
+- **Next:** IDEAS.md backlog unchanged in substance from Session 16, minus
+  the four UI/Info items resolved this session (info/help overlay, help-menu
+  design pass, player name placement, help-indicator-takes-dev-badge-spot).
+  Remaining: resource storage caps, fullscreen toggle, custom icon, text
+  cross-reference pass, blink dog forage-pool bug, druid/owlbear sprite
+  redesign, flumph size, dismiss-glyph zoom tuning, statue cutout retrace,
+  locked-area desaturation retrace, day/night transition bug, sprite
+  pixelation-consistency decision, event/interaction frequency tuning.

@@ -16,7 +16,7 @@ from game import dialogue as dlg
 from game.renderer import (
     draw_scene,
     draw_text_box, draw_center_flash, text_box_item_rects,
-    draw_areas_panel,
+    draw_areas_panel, draw_help_panel,
     stirge_rect, stirge_pos,
     blink_dog_rect, blink_dog_pos,
     owlbear_rect, owlbear_pos,
@@ -70,7 +70,7 @@ def run_name_entry(screen, game_surf, clock, config, blit_x, blit_y,
         draw_scene(game_surf, "dawn", 0.05, game_w, game_h, areas=areas,
                    anim_time=pygame.time.get_ticks() / 1000.0)
 
-        pw, ph = 420, 170
+        pw, ph = 420, 195
         px = (game_w - pw) // 2
         py = (game_h - ph) // 2
 
@@ -95,9 +95,12 @@ def run_name_entry(screen, game_surf, clock, config, blit_x, blit_y,
         display = font.render(name + cursor, True, (215, 230, 205))
         game_surf.blit(display, (fx + 10, fy + 7))
 
+        help_hint = font.render("Press H anytime for help and controls", True, (90, 120, 75))
+        game_surf.blit(help_hint, (px + (pw - help_hint.get_width()) // 2, py + 135))
+
         if name.strip():
             hint = font.render("Press Enter to begin", True, (110, 145, 90))
-            game_surf.blit(hint, (px + (pw - hint.get_width()) // 2, py + 143))
+            game_surf.blit(hint, (px + (pw - hint.get_width()) // 2, py + 165))
 
         if fullscreen:
             screen.fill((0, 0, 0))
@@ -142,6 +145,11 @@ def render_player_name(surface, font_sm, name, x, y):
     if name:
         t = font_sm.render(name, True, (160, 195, 140))
         surface.blit(t, (x, y))
+
+
+def render_help_hint(surface, font_sm, right_x, y):
+    t = font_sm.render("[H] Help", True, DIM)
+    surface.blit(t, (right_x - t.get_width(), y))
 
 
 def render_dev_badge(surface, font_sm, x, y):
@@ -283,6 +291,9 @@ def main():
                                #  "creature":c|None,"pool":...,"feed_pool":...,"ttl":float,"hover":int}
     show_areas_panel  = False
     areas_clickable   = {}     # {area_name: rect}, rebuilt each frame when panel is open
+    show_help_panel   = False
+    help_tab          = "controls"
+    help_clickable    = {}     # {"controls"|"feeding": rect}, rebuilt each frame when panel is open
 
     autosave_interval   = config["autosave_interval_seconds"]
     last_autosave       = time.time()
@@ -363,6 +374,8 @@ def main():
                 if event.key == pygame.K_ESCAPE:
                     if show_areas_panel:
                         show_areas_panel = False
+                    elif show_help_panel:
+                        show_help_panel = False
                     elif text_box and text_box["mode"] == "options":
                         text_box = None
                     elif not text_box:
@@ -384,7 +397,11 @@ def main():
                 elif event.key == pygame.K_r:
                     show_areas_panel = not show_areas_panel
                     if show_areas_panel:
-                        action_menu = None
+                        show_help_panel = False
+                elif event.key == pygame.K_h:
+                    show_help_panel = not show_help_panel
+                    if show_help_panel:
+                        show_areas_panel = False
                 elif event.key == pygame.K_d:
                     time_sys.toggle_dev_speed()
                 elif event.key == pygame.K_f:
@@ -412,7 +429,13 @@ def main():
                 mx, my = event.pos
                 gx, gy = mx - blit_x, my - blit_y
 
-                if show_areas_panel:
+                if show_help_panel:
+                    for tab, rect in help_clickable.items():
+                        if rect.collidepoint(gx, gy):
+                            help_tab = tab
+                            break
+
+                elif show_areas_panel:
                     for area_name, rect in areas_clickable.items():
                         if rect.collidepoint(gx, gy):
                             if areas.can_afford(area_name, resources):
@@ -564,10 +587,10 @@ def main():
         # Title
         title = font_lg.render("The Grove", True, (200, 230, 180))
         game_surf.blit(title, (20, 16))
-        # Player name removed for now — placement TBD (issue 3/4 follow-up).
-        # Keybind cheat sheet removed entirely — moving to the future
-        # info/help overlay (see IDEAS.md). Forage/Tend are now click-only
-        # (druid/statue), F/T keys still work as undocumented shortcuts.
+        render_player_name(game_surf, font_sm, player_name, 20, 16 + title.get_height() + 2)
+        # Keybind cheat sheet removed entirely — folded into the [H] help
+        # menu. Forage/Tend are now click-only (druid/statue), F/T keys
+        # still work as undocumented shortcuts.
 
         # Resource bars — bottom-right corner, sharing a row with the message box
         resources.render(game_surf, font_sm, res_panel_x, res_panel_y)
@@ -575,7 +598,13 @@ def main():
         # Time HUD — stacked directly above the resource panel, same width
         render_time_hud(game_surf, font_sm, time_sys, time_hud_x, time_hud_y, resources.PANEL_W)
 
-        # Dev badge — top-right (top-left now sits over the displacer beast)
+        # Help hint — top-right, always visible (discoverability for [H]);
+        # vertically centred against the title so both lines line up
+        title_center_y = 16 + title.get_height() // 2
+        help_y = title_center_y - font_sm.get_height() // 2
+        render_help_hint(game_surf, font_sm, game_w - 14, help_y)
+
+        # Dev badge — top-right, below the help hint
         if time_sys.dev_speed:
             badge_text = "DEV SPEED  [D]"
             render_dev_badge(game_surf, font_sm, game_w - font_sm.size(badge_text)[0] - 14, 36)
@@ -584,6 +613,11 @@ def main():
         if show_areas_panel:
             areas_clickable = draw_areas_panel(
                 game_surf, font, font_sm, areas, resources, game_w, game_h)
+
+        # Help / info panel
+        if show_help_panel:
+            help_clickable = draw_help_panel(
+                game_surf, font, font_sm, help_tab, config, game_w, game_h)
 
         # Bottom text box (creature options / dialogue / grove messages)
         if text_box:

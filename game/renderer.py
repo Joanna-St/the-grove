@@ -195,11 +195,7 @@ def draw_statue(surface, period, screen_w, screen_h):
 
 
 def statue_rect(screen_w, screen_h):
-    cx = screen_w // 2
-    base_y = round(screen_h * 0.684)
-    w = round(screen_w * 0.114)
-    h = round(screen_h * 0.43)
-    return pygame.Rect(cx - w // 2, base_y - h, w, h)
+    return sprite_rect("statue", screen_w, screen_h)
 
 
 # ------------------------------------------------------------------
@@ -630,6 +626,96 @@ def draw_areas_panel(surface, font, font_sm, areas, resources, screen_w, screen_
     surface.blit(ch, (px + (_AP_W - ch.get_width()) // 2, py + panel_h - _AP_HINT_H))
 
     return clickable
+
+
+# ------------------------------------------------------------------
+# Help / info panel — two tabs: Controls, Feeding
+
+_HP_W       = 460
+_HP_TAB_H   = 36
+_HP_ROW_H   = 22
+_HP_PAD     = 14
+_HP_HINT_H  = 24
+
+_HELP_CONTROLS = [
+    ("Click", "Interact with a creature, the statue, or the druid"),
+    ("Enter", "Advance or dismiss dialogue"),
+    ("S",     "Save"),
+    ("R",     "Open/close the grove restoration panel"),
+    ("H",     "Open/close this help menu"),
+    ("Esc",   "Close a menu, or quit"),
+]
+
+
+def draw_help_panel(surface, font, font_sm, active_tab, config, screen_w, screen_h):
+    """
+    Two-tab reference panel (Controls / Feeding).
+    Returns {"controls": rect, "feeding": rect} tab click targets.
+    """
+    if active_tab == "feeding":
+        rows = [(name.replace("_", " ").title(), cfg.get("feeding", {}))
+                for name, cfg in config["creatures"].items()]
+    else:
+        rows = _HELP_CONTROLS
+
+    panel_h = _HP_TAB_H + len(rows) * _HP_ROW_H + _HP_HINT_H + _HP_PAD * 2
+    px = (screen_w - _HP_W) // 2
+    py = (screen_h - panel_h) // 2
+
+    dim = pygame.Surface((screen_w, screen_h), pygame.SRCALPHA)
+    dim.fill((0, 0, 0, 150))
+    surface.blit(dim, (0, 0))
+
+    bg = pygame.Surface((_HP_W, panel_h), pygame.SRCALPHA)
+    bg.fill((12, 20, 12, 235))
+    surface.blit(bg, (px, py))
+    pygame.draw.rect(surface, (70, 100, 60), (px, py, _HP_W, panel_h), 1)
+
+    # Tabs
+    tab_w  = _HP_W // 2
+    tabs   = {}
+    labels = [("controls", "Controls"), ("feeding", "Feeding")]
+    for i, (key, label) in enumerate(labels):
+        rect = pygame.Rect(px + i * tab_w, py, tab_w, _HP_TAB_H)
+        tabs[key] = rect
+        active = key == active_tab
+        if active:
+            pygame.draw.rect(surface, (25, 45, 20), rect)
+        col = (200, 220, 180) if active else (100, 120, 90)
+        t = font.render(label, True, col)
+        surface.blit(t, (rect.centerx - t.get_width() // 2, rect.centery - t.get_height() // 2))
+    pygame.draw.line(surface, (70, 100, 60), (px, py + _HP_TAB_H), (px + _HP_W, py + _HP_TAB_H))
+    pygame.draw.line(surface, (70, 100, 60), (px + tab_w, py), (px + tab_w, py + _HP_TAB_H))
+
+    # Body
+    body_y = py + _HP_TAB_H + _HP_PAD
+    if active_tab == "feeding":
+        col_day, col_cost, col_cd = px + 150, px + 230, px + 320
+        for i, (name, feed) in enumerate(rows):
+            ry = body_y + i * _HP_ROW_H
+            nm = font_sm.render(name, True, (170, 200, 150))
+            surface.blit(nm, (px + _HP_PAD, ry))
+
+            per_day = feed.get("feeds_per_day", 0)
+            cost    = feed.get("forage_cost", 0)
+            cd      = feed.get("cooldown_real_seconds", 0)
+            cd_str  = f"{cd / 60:.0f} min cooldown" if cd > 0 else "no cooldown"
+
+            surface.blit(font_sm.render(f"{per_day}/day", True, (130, 155, 115)), (col_day, ry))
+            surface.blit(font_sm.render(f"{cost:.0f} forage", True, (130, 155, 115)), (col_cost, ry))
+            surface.blit(font_sm.render(cd_str, True, (130, 155, 115)), (col_cd, ry))
+    else:
+        for i, (key, desc) in enumerate(rows):
+            ry = body_y + i * _HP_ROW_H
+            kt = font_sm.render(key, True, (200, 220, 180))
+            surface.blit(kt, (px + _HP_PAD, ry))
+            dt = font_sm.render(desc, True, (150, 170, 135))
+            surface.blit(dt, (px + _HP_PAD + 70, ry))
+
+    ch = font_sm.render("[H]  close", True, (62, 82, 55))
+    surface.blit(ch, (px + (_HP_W - ch.get_width()) // 2, py + panel_h - _HP_HINT_H))
+
+    return tabs
 
 
 # ------------------------------------------------------------------

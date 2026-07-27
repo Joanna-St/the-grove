@@ -96,41 +96,6 @@ Things to consider for later phases. Not current phase scope.
 
 ## UI / Info
 
-- **Info / help overlay** — a dedicated screen (key-bind TBD) showing controls,
-  per-creature feeding limits (feeds/day, cooldown), and other reference info
-  that used to live in the always-on HUD. Came up when the bond-status sidebar
-  was replaced with per-creature bond bars (Session 13) — feed status
-  (`Creature.feed_indicator`, game/creatures.py) no longer renders anywhere
-  in-game, so this is where it should resurface rather than being shown live.
-  Scope alongside the rest of the Phase 5 UI pass.
-
-- **Help-menu indicator takes over the dev-speed badge's spot** — the "DEV
-  SPEED [D]" badge currently sits top-right (Session 13) as a stopgap, since
-  dev mode is a development-only tool and that corner was empty. When dev
-  mode is eventually retired (pre-release), put the help-menu indicator/icon
-  in that same top-right spot instead.
-
-- **Help/info menu — actual design pass** — the "Info / help overlay" item
-  above has only ever been a placeholder concept (key-bind TBD, contents
-  sketched). Needs a real design pass: layout, what exactly it lists
-  (controls, feed limits, anything else retired from the live HUD), how it's
-  opened/closed. Several other parked items (keybinds cheat sheet, feed
-  indicator) are blocked on this actually existing. Flagged Session 14.
-
-- **Reconsider event/action menus for statue and druid** — Session 13 issue 4
-  deliberately concluded a popup menu (Forage/Tend/Event) wasn't needed,
-  extending the statue's existing event-if-pending-else-action click pattern
-  to the druid instead. Revisit after living with that decision longer —
-  flagged Session 14 as worth a second look, no specific complaint yet, just
-  "possibly add after all." User asked Session 15 for an explicit pros/cons
-  discussion next time before deciding either way.
-
-- **Player name display — re-add somewhere on-screen** — removed from the
-  live HUD in Session 13 issue 3 (alongside the keybinds cheat sheet);
-  keybinds were folded into the future help menu, but the player name's
-  placement was never resolved and the thread went cold. Needs an actual home
-  on-screen. Flagged again Session 14.
-
 - **Statue halo cutout cleanup** — `assets/sprites/statue.png` (Session 13
   issue 6) was extracted from the background art via colour-threshold
   segmentation purely to drive the halo silhouette; it's rough (uneven edges,
