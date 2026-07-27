@@ -23,7 +23,7 @@ class ResourceTracker:
     }
     DISPLAY_NAMES = {
         "forage": "Forage", "heartwood": "Heartwood",
-        "glamour": "Glamour", "protection": "Shield",
+        "glamour": "Glamour", "protection": "Ward",
     }
 
     # Slim HUD panel geometry — exposed so callers can position the panel

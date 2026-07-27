@@ -180,6 +180,31 @@ def _creature_menu_options(creature, resources, config):
     return options
 
 
+def _statue_menu_options(events, tend_cd, resources, action_cfg):
+    tc       = action_cfg["tend_statue"]
+    can_tend = tend_cd <= 0 and resources.glamour >= tc["glamour_cost"]
+    options  = [("Tend", f"-{tc['glamour_cost']:.0f} glamour", can_tend)]
+    if events.grove_pending_event:
+        options.append(("Event", "", True))
+    return options
+
+
+def _druid_menu_options(events, forage_cd):
+    options = [("Forage", "", forage_cd <= 0)]
+    if events.visitor_pending_event:
+        options.append(("Event", "", True))
+    return options
+
+
+def _menu_options_for(text_box, resources, config, events, tend_cd, forage_cd, action_cfg):
+    kind = text_box.get("kind", "creature")
+    if kind == "statue":
+        return _statue_menu_options(events, tend_cd, resources, action_cfg)
+    if kind == "druid":
+        return _druid_menu_options(events, forage_cd)
+    return _creature_menu_options(text_box["creature"], resources, config)
+
+
 def _apply_creature_event(creature, resources):
     """Clears the creature's pending event, applies its reward, returns its text."""
     event = creature.pending_event
@@ -326,7 +351,8 @@ def main():
                 if text_box and text_box["mode"] == "options":
                     mx, my = event.pos
                     gx, gy = mx - blit_x, my - blit_y
-                    opts  = _creature_menu_options(text_box["creature"], resources, config)
+                    opts  = _menu_options_for(text_box, resources, config, events,
+                                              tend_cd, forage_cd, action_cfg)
                     rects = text_box_item_rects(
                         font_sm, text_box["speaker"], len(opts), game_w, game_h,
                         right_inset=text_box_right_inset)
@@ -403,29 +429,52 @@ def main():
                             break
 
                 elif text_box and text_box["mode"] == "options":
-                    creature = text_box["creature"]
-                    opts  = _creature_menu_options(creature, resources, config)
+                    kind  = text_box.get("kind", "creature")
+                    opts  = _menu_options_for(text_box, resources, config, events,
+                                              tend_cd, forage_cd, action_cfg)
                     rects = text_box_item_rects(
                         font_sm, text_box["speaker"], len(opts), game_w, game_h,
                         right_inset=text_box_right_inset)
-                    acted = False
-                    for r, (label, _, available) in zip(rects, opts):
-                        if r.collidepoint(gx, gy) and available:
-                            if label == "Interact":
-                                creature.interact(text_box["pool"])
-                                text_box = _creature_text(creature)
-                            elif label == "Feed":
-                                feed_cfg = config["creatures"].get(creature.name, {}).get("feeding", {})
-                                resources.add("forage", -feed_cfg["forage_cost"])
-                                creature.feed(text_box["feed_pool"])
-                                text_box = _creature_text(creature)
-                            elif label == "Event":
-                                text = _apply_creature_event(creature, resources)
-                                text_box = _event_text(creature, text)
-                            acted = True
-                            break
-                    if not acted:
-                        text_box = None   # click outside options → dismiss
+                    label = next((lbl for r, (lbl, _, available) in zip(rects, opts)
+                                  if r.collidepoint(gx, gy) and available), None)
+
+                    if label is None:
+                        text_box = None   # click outside options (or unavailable) → dismiss
+                    elif kind == "creature":
+                        creature = text_box["creature"]
+                        if label == "Interact":
+                            creature.interact(text_box["pool"])
+                            text_box = _creature_text(creature)
+                        elif label == "Feed":
+                            feed_cfg = config["creatures"].get(creature.name, {}).get("feeding", {})
+                            resources.add("forage", -feed_cfg["forage_cost"])
+                            creature.feed(text_box["feed_pool"])
+                            text_box = _creature_text(creature)
+                        elif label == "Event":
+                            text = _apply_creature_event(creature, resources)
+                            text_box = _event_text(creature, text)
+                    elif kind == "statue":
+                        if label == "Tend":
+                            tc = action_cfg["tend_statue"]
+                            resources.add("glamour",    -tc["glamour_cost"])
+                            resources.add("protection",  tc["protection_restore"])
+                            tend_cd  = tend_cd_max
+                            text_box = _grove_text(dlg.pick(dlg.TEND_STATUE))
+                        elif label == "Event":
+                            text_box = _grove_text(events.grove_pending_event["text"])
+                            events.grove_pending_event = None
+                    elif kind == "druid":
+                        if label == "Forage":
+                            fc = action_cfg["forage"]
+                            resources.add("forage",    fc["forage_yield"])
+                            resources.add("heartwood", fc["heartwood_yield"])
+                            if random.random() < fc["glamour_chance"]:
+                                resources.add("glamour", fc["glamour_yield"])
+                            forage_cd = forage_cd_max
+                            text_box  = _grove_text(dlg.pick(dlg.FORAGE))
+                        elif label == "Event":
+                            boxes    = events.visitor_pending_event["boxes"]
+                            text_box = _visitor_text(boxes[0], events.visitor_display_name(), boxes)
 
                 elif text_box and text_box["mode"] == "text":
                     boxes = text_box.get("boxes")
@@ -460,32 +509,22 @@ def main():
                             break
 
                     if not clicked_creature and st_rect.collidepoint(gx, gy):
-                        if events.grove_pending_event:
-                            text_box = _grove_text(events.grove_pending_event["text"])
-                            events.grove_pending_event = None
-                        elif tend_cd <= 0:
-                            tc = action_cfg["tend_statue"]
-                            if resources.glamour >= tc["glamour_cost"]:
-                                resources.add("glamour",    -tc["glamour_cost"])
-                                resources.add("protection",  tc["protection_restore"])
-                                tend_cd  = tend_cd_max
-                                text_box = _grove_text(dlg.pick(dlg.TEND_STATUE))
-                            else:
-                                center_flash_text = "Not enough glamour to tend the statue."
-                                center_flash_ttl  = 3.0
+                        text_box = {
+                            "mode": "options", "speaker": "The Grove", "text": "",
+                            "creature": None, "kind": "statue", "pool": None,
+                            "feed_pool": None, "ttl": None, "hover": -1,
+                            "boxes": None, "box_idx": 0, "is_visitor": False,
+                        }
 
                     elif not clicked_creature and dr_rect.collidepoint(gx, gy):
-                        if events.visitor_pending_event:
-                            boxes    = events.visitor_pending_event["boxes"]
-                            text_box = _visitor_text(boxes[0], events.visitor_display_name(), boxes)
-                        elif forage_cd <= 0:
-                            fc = action_cfg["forage"]
-                            resources.add("forage",    fc["forage_yield"])
-                            resources.add("heartwood", fc["heartwood_yield"])
-                            if random.random() < fc["glamour_chance"]:
-                                resources.add("glamour", fc["glamour_yield"])
-                            forage_cd = forage_cd_max
-                            text_box  = _grove_text(dlg.pick(dlg.FORAGE))
+                        speaker = (events.visitor_display_name()
+                                   if events.visitor_pending_event else "The Grove")
+                        text_box = {
+                            "mode": "options", "speaker": speaker, "text": "",
+                            "creature": None, "kind": "druid", "pool": None,
+                            "feed_pool": None, "ttl": None, "hover": -1,
+                            "boxes": None, "box_idx": 0, "is_visitor": False,
+                        }
 
         # ---- Update ----
         time_sys.update(dt_real)
@@ -548,7 +587,8 @@ def main():
 
         # Bottom text box (creature options / dialogue / grove messages)
         if text_box:
-            opts = (_creature_menu_options(text_box["creature"], resources, config)
+            opts = (_menu_options_for(text_box, resources, config, events,
+                                      tend_cd, forage_cd, action_cfg)
                     if text_box["mode"] == "options" else [])
             boxes = text_box.get("boxes")
             has_more = boxes is not None and text_box["box_idx"] < len(boxes) - 1

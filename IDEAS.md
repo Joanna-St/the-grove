@@ -10,9 +10,7 @@ Things to consider for later phases. Not current phase scope.
 
 
 
-- **Shield decay rate** — current value (0.02/s, scaling with area count) may need adjustment once more areas are unlocked and the full late-game decay rate is observable. Revisit in Phase 3 playtesting.
-
-- **"Shield" display name** — "Shield" is functional but may not fit the grove tone. Consider something more druidic/Feywild-flavoured (e.g. "Ward", "Veil", "Sanctity"). Decide when the full HUD is finalised in Phase 5.
+- **Ward decay rate** — current value (0.02/s, scaling with area count) may need adjustment once more areas are unlocked and the full late-game decay rate is observable. Revisit in Phase 3 playtesting.
 
 - **Too many pop-up interactions even at regular (non-dev) speed** — flagged
   Session 15 by the user: creature events, grove events, and visitor beats

@@ -60,12 +60,15 @@ Full phase descriptions in design doc.
 ## Current Phase
 **Phase 5 — Art & Polish**
 
-HUD layout pass (Session 13), idle animation/halo follow-ups (Session 14), and
-dialogue box overflow + rune-disc controls (Session 15) are done. Next step:
-remaining UI polish items from IDEAS.md (Shield rename, resource storage caps,
-fullscreen toggle, custom icon, text cross-reference pass, blink dog forage
-pool bug, help/info menu design, player name placement, druid/owlbear sprite
-redesign, flumph size).
+HUD layout pass (Session 13), idle animation/halo follow-ups (Session 14),
+dialogue box overflow + rune-disc controls (Session 15), and statue/druid
+event-action menus + Shield→Ward rename (Session 16) are done. Next step:
+remaining UI polish items from IDEAS.md (resource storage caps, fullscreen
+toggle, custom icon, text cross-reference pass, blink dog forage pool bug,
+help/info menu design, player name placement, druid/owlbear sprite redesign,
+flumph size, dismiss-glyph zoom tuning, locked-area/statue manual tracing,
+day/night transition bug, sprite pixelation-consistency decision, event
+frequency tuning).
 
 ## Phase 6 — Post-Launch Additions (not yet scoped)
 - Creature max-bond perks (design.md specs one per creature: Pseudodragon/Stirge early-warning, Flumph/Displacer Beast event dampening, Pixie wildcard intervention, Blink Dog yield boost, Moss Wisp grove-health-gated boost). Deliberately deferred post-launch — half of these assume a negative/threat tagging axis for grove + visitor events that doesn't exist yet (4c/4d shipped as pure flavour, no good/bad categorisation). Revisit scoping then.
@@ -695,3 +698,62 @@ trusting the code to be correct.
   storage caps, fullscreen toggle, custom icon, text cross-reference pass,
   blink dog forage-pool bug, help/info menu design, player name placement,
   druid/owlbear sprite redesign, flumph size, dismiss-glyph zoom tuning).
+
+### Session 16 — [27.07.2026]
+**Phase 5 — Statue/druid event-action menus; Shield renamed to Ward.**
+
+**Statue/druid options menus.** Session 15 left "reconsider event/action
+menus for statue and druid" as an open question; discussed pros/cons this
+session before implementing. The deciding factor: creatures already resolve
+click ambiguity by opening a menu (Interact/Feed/Event) that reveals what's
+about to happen before you commit, but the statue and druid resolved
+immediately on click with no preview — genuinely couldn't tell forage vs.
+event, or tend vs. event, until after clicking. Implemented via the existing
+options-menu machinery: `_statue_menu_options()` (Tend + Event if pending)
+and `_druid_menu_options()` (Forage + Event if pending) in main.py, mirroring
+`_creature_menu_options()`; `text_box` gained a `kind` field
+(`"creature"`/`"statue"`/`"druid"`) so the three call sites that need to know
+which options apply (hover detection, click resolution, render) now go
+through one shared `_menu_options_for()` dispatcher instead of tripling the
+branch logic. Statue/druid clicks now open the menu instead of resolving
+directly; the options-mode click handler gained `"statue"`/`"druid"` branches
+alongside the existing creature one, reusing the same resource/cooldown logic
+that used to fire immediately.
+- **Decision (explicit, changes prior behaviour):** a pending event no longer
+  blocks Tend/Forage outright — both now appear as independent, separately
+  selectable menu rows, matching how creatures already let Interact/Feed/Event
+  coexist. The old exclusivity was a historical artifact of a design that
+  never got revisited, not a deliberate rule — user confirmed dropping it.
+- **Speaker labels:** statue menu always shows "The Grove" (both its outcomes
+  — Tend and grove events — already use that speaker for the resulting text,
+  so no mismatch). Druid menu shows the visitor's display name when a visitor
+  event is pending, else "The Grove" (matching the Forage outcome's speaker).
+- **Side effect:** the old "Not enough glamour to tend the statue." centre-flash
+  message on a blocked click is gone — replaced by Tend showing greyed-out
+  with its cost visible in the menu, same treatment Feed already gets for
+  creatures. Verified via mocked `_statue_menu_options`/`_druid_menu_options`/
+  `_menu_options_for` calls (cooldown-blocked, event-pending, both-at-once)
+  before the live playtest confirmed it.
+- F/T keyboard shortcuts left untouched — still bypass the menu and act
+  directly, per the Session 13 "bonus shortcut" decision.
+
+**Shield → Ward rename.** Long-parked IDEAS.md item, decided this session.
+Considered "Ward"/"Veil"/"Sanctity" (recorded back in an earlier session);
+user picked **Ward** specifically to avoid "Veil" reading as a duplicate of
+the Feywild Boundary, which is visually and narratively already a veil-like
+threshold in the game. Turned out to be a single display-string change —
+`DISPLAY_NAMES["protection"]` in `game/resources.py` was the only in-game
+reference (the internal stat/attribute name was always `protection`, "Shield"
+was purely the HUD label). Also swept `docs/design.md` (the canonical design
+bible) for descriptive prose uses of "shield" and updated those to "ward" for
+consistency, since the doc is meant to stay in sync with actual naming
+decisions. `IDEAS.md`'s "Shield decay rate" tuning item renamed to match;
+the "Shield display name" item itself removed now that it's decided.
+
+- **Next:** remaining Phase 5 IDEAS.md backlog (resource storage caps,
+  fullscreen toggle, custom icon, text cross-reference pass, blink dog
+  forage-pool bug, help/info menu design, player name placement, druid/owlbear
+  sprite redesign, flumph size, dismiss-glyph zoom tuning, plus the newer
+  Session 15 items: locked-area desaturation retrace, statue cutout retrace,
+  day/night transition bug, sprite pixelation-consistency decision, and
+  event/interaction frequency tuning).
