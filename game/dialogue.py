@@ -109,44 +109,120 @@ MILESTONES = {
 
 FIXED_EVENTS = {
     "stirge": {
-        1: "The stirge has roosted in the same place three nights running. This morning you found it there before dawn. It looked at you with one large eye and did not move. You have the feeling it has decided something, and that you were not consulted.",
+        1: [
+            "The stirge has roosted in the same place three nights running. This morning you found it there before dawn.",
+            "It looked at you with one large eye and did not move. You have the feeling it has decided something, and that you were not consulted.",
+        ],
         2: "It dropped something at the base of the statue and flew off before you could look at it. It's a beetle, dried out, wings intact. Not forage. Not useful. You put it somewhere it won't get lost.",
-        3: "You woke before dawn and found it perched at the grove boundary, facing outward. It didn't look back when you approached. It stayed there until the light changed. You don't know what it was watching for. You're glad it was.",
+        3: [
+            "You woke before dawn and found it perched at the grove boundary, facing outward. It didn't look back when you approached.",
+            "It stayed there until the light changed. You don't know what it was watching for. You're glad it was.",
+        ],
     },
     "blink_dog": {
-        1: "You called it back from across the clearing — half expecting nothing — and it appeared directly behind you, slightly out of breath, carrying something it had picked up on the way. The something was a pinecone. It dropped it at your feet and looked very pleased. You are choosing to believe this was intentional.",
-        2: "It has started appearing near you when you're working and then leaving again. Not staying. Just — checking. It blinked in while you were tending the statue, looked at you for a moment, and blinked away before you could say anything. It came back twice more.",
-        3: "It was gone for most of the foraging trip. You'd stopped expecting it to stay close. When you turned back toward the grove your pack was fuller than it should have been — things tucked in from the sides, forage from further out than you'd gone. The blink dog reappeared at the grove edge ahead of you, looking thoroughly unsurprised by all of it.",
+        1: [
+            "You called it back from across the clearing — half expecting nothing — and it appeared directly behind you, slightly out of breath, carrying something it had picked up on the way.",
+            "The something was a pinecone. It dropped it at your feet and looked very pleased. You are choosing to believe this was intentional.",
+        ],
+        2: [
+            "It has started appearing near you when you're working and then leaving again. Not staying. Just — checking.",
+            "It blinked in while you were tending the statue, looked at you for a moment, and blinked away before you could say anything. It came back twice more.",
+        ],
+        3: [
+            "It was gone for most of the foraging trip. You'd stopped expecting it to stay close.",
+            "When you turned back toward the grove your pack was fuller than it should have been — things tucked in from the sides, forage from further out than you'd gone.",
+            "The blink dog reappeared at the grove edge ahead of you, looking thoroughly unsurprised by all of it.",
+        ],
     },
     "owlbear": {
-        1: "It was at the grove edge when you arrived, which it has been before. But it didn't move back when you walked past. It watched you cross the clearing, tend the statue, start the morning's work. At some point you turned around and it was closer than it had been. It hadn't moved while you were watching.",
-        2: "It followed you on a foraging trip without being asked — a little behind, a little to the left, moving with the concentrated care of something that knows it is large. It knocked over two trees. You don't think it noticed either time. When you turned back toward the grove it was already ahead of you, waiting at the path, like it had been leading all along.",
-        3: "You arrived at the heartstone before dawn and found it asleep at the base of the statue. It is very large. It takes up a significant amount of the clearing. It woke when you approached, looked at you with one slow eye, and put its head back down. You worked around it. The grove felt different with something that size choosing to be still in it.",
+        1: [
+            "It was at the grove edge when you arrived, which it has been before. But it didn't move back when you walked past. It watched you cross the clearing, tend the statue, start the morning's work.",
+            "At some point you turned around and it was closer than it had been. It hadn't moved while you were watching.",
+        ],
+        2: [
+            "It followed you on a foraging trip without being asked — a little behind, a little to the left, moving with the concentrated care of something that knows it is large.",
+            "It knocked over two trees. You don't think it noticed either time. When you turned back toward the grove it was already ahead of you, waiting at the path, like it had been leading all along.",
+        ],
+        3: [
+            "You arrived at the heartstone before dawn and found it asleep at the base of the statue. It is very large. It takes up a significant amount of the clearing.",
+            "It woke when you approached, looked at you with one slow eye, and put its head back down. You worked around it.",
+            "The grove felt different with something that size choosing to be still in it.",
+        ],
     },
     "pseudodragon": {
-        1: "It descended to a branch within arm's reach while you were working — the lowest it has come since it arrived. It stayed for a while. When you looked up it held your gaze for a moment and then looked away, as if something in the middle distance had become more interesting. You suddenly knew it found the grove satisfactory.",
-        2: "You were tending the statue when something shifted — a pressure at the edge of your thoughts, directional, insistent. Twenty minutes later, something arrived at the grove edge. You were already prepared. You looked up at the canopy. It was watching the boundary, not you. It had not done this as a favour.",
-        3: "You noticed it while you were foraging — a low, resonant hum, felt more than heard, threading through your thoughts like warmth. It took you a moment to place it. You looked back toward the canopy, too far away to see clearly. The hum didn't stop until you returned.",
+        1: [
+            "It descended to a branch within arm's reach while you were working — the lowest it has come since it arrived. It stayed for a while.",
+            "When you looked up it held your gaze for a moment and then looked away, as if something in the middle distance had become more interesting.",
+            "You suddenly knew it found the grove satisfactory.",
+        ],
+        2: [
+            "You were tending the statue when something shifted — a pressure at the edge of your thoughts, directional, insistent.",
+            "Twenty minutes later, something arrived at the grove edge. You were already prepared. You looked up at the canopy.",
+            "It was watching the boundary, not you. It had not done this as a favour.",
+        ],
+        3: [
+            "You noticed it while you were foraging — a low, resonant hum, felt more than heard, threading through your thoughts like warmth. It took you a moment to place it.",
+            "You looked back toward the canopy, too far away to see clearly. The hum didn't stop until you returned.",
+        ],
     },
     "flumph": {
-        1: "It has a particular colour it turns when you arrive in the morning. You noticed it for the first time today — not because it was new, but because you finally recognised it. You've seen it every morning. You just didn't know yet that it was for you.",
-        2: "The glamour had been dropping for two days before you caught it. The flumph had been dimmer for three. You understood this only afterward, standing at the statue, thinking back. It hadn't been distressed. It had been telling you. You're paying attention differently now.",
-        3: "Something came through the boundary that shouldn't have — you felt it before you saw it, a wrongness at the edge of the grove. You were moving toward it when the flumph drifted past you, unhurried, toward the boundary. The wrongness quieted. The flumph returned to its spot and changed colour slowly, the way it does when it's tired. You stayed up anyway. Nothing else came.",
+        1: [
+            "It has a particular colour it turns when you arrive in the morning. You noticed it for the first time today — not because it was new, but because you finally recognised it.",
+            "You've seen it every morning. You just didn't know yet that it was for you.",
+        ],
+        2: [
+            "The glamour had been dropping for two days before you caught it. The flumph had been dimmer for three. You understood this only afterward, standing at the statue, thinking back.",
+            "It hadn't been distressed. It had been telling you. You're paying attention differently now.",
+        ],
+        3: [
+            "Something came through the boundary that shouldn't have — you felt it before you saw it, a wrongness at the edge of the grove.",
+            "You were moving toward it when the flumph drifted past you, unhurried, toward the boundary. The wrongness quieted.",
+            "The flumph returned to its spot and changed colour slowly, the way it does when it's tired. You stayed up anyway. Nothing else came.",
+        ],
     },
     "moss_wisp": {
-        1: "It was at the heartstone when you arrived — not drifting through, not passing. Just there. You went about your work and it remained, and at some point you stopped accounting for it the way you account for things that might leave.",
-        2: "The forage along the oldwood path has been better for weeks. You noticed it the way you notice weather — gradually, then all at once. You walked the path this morning looking at it properly for the first time and understood that something had been tending it. Not you. The wisp drifted through the far end of the path while you were standing there. It did not slow down.",
-        3: "The oldwood is different at dusk now. Not brighter, exactly — the light behaves differently, settles differently, catches on things it didn't used to reach. The wisp was there this evening, as it often is. The light moved with it. Some things don't require a response.",
+        1: [
+            "It was at the heartstone when you arrived — not drifting through, not passing. Just there.",
+            "You went about your work and it remained, and at some point you stopped accounting for it the way you account for things that might leave.",
+        ],
+        2: [
+            "The forage along the oldwood path has been better for weeks. You noticed it the way you notice weather — gradually, then all at once.",
+            "You walked the path this morning looking at it properly for the first time and understood that something had been tending it. Not you.",
+            "The wisp drifted through the far end of the path while you were standing there. It did not slow down.",
+        ],
+        3: [
+            "The oldwood is different at dusk now. Not brighter, exactly — the light behaves differently, settles differently, catches on things it didn't used to reach.",
+            "The wisp was there this evening, as it often is. The light moved with it. Some things don't require a response.",
+        ],
     },
     "pixie": {
-        1: "You noticed the forage pile had been rearranged. Not damaged — rearranged. Something had strong opinions about the organisation of it. You put it back the way it was. By evening it had been moved again.",
-        2: "It sat in one place long enough for you to see it clearly for the first time. Then it looked at you with an expression you couldn't read, touched something it probably shouldn't have, and was gone. The grove was slightly better afterward. You're not sure those two things are unrelated.",
-        3: "You came back from foraging to find the clearing different. Not wrong — different. Things moved, things shifted, something tended that you hadn't gotten to yet. The pixie was nowhere visible. The grove was brighter than when you left.",
+        1: [
+            "You noticed the forage pile had been rearranged. Not damaged — rearranged. Something had strong opinions about the organisation of it.",
+            "You put it back the way it was. By evening it had been moved again.",
+        ],
+        2: [
+            "It sat in one place long enough for you to see it clearly for the first time.",
+            "Then it looked at you with an expression you couldn't read, touched something it probably shouldn't have, and was gone.",
+            "The grove was slightly better afterward. You're not sure those two things are unrelated.",
+        ],
+        3: [
+            "You came back from foraging to find the clearing different. Not wrong — different. Things moved, things shifted, something tended that you hadn't gotten to yet.",
+            "The pixie was nowhere visible. The grove was brighter than when you left.",
+        ],
     },
     "displacer_beast": {
-        1: "You almost walked past it. It was asleep against the oldwood roots, half-displaced, flickering slowly — and for a moment you weren't sure what you were seeing. It didn't wake. You backed away carefully and left it where it was.",
-        2: "It was there when you entered the oldwood, moving through a different line of trees at a distance that felt chosen. When you stopped it stopped. When you moved it moved. You brought back more than usual.",
-        3: "It has stopped disappearing when you approach the boundary. It's just there most evenings, at the grove edge. You walk past. It doesn't move. You're not sure when this became the arrangement. You don't think it was a single decision.",
+        1: [
+            "You almost walked past it. It was asleep against the oldwood roots, half-displaced, flickering slowly — and for a moment you weren't sure what you were seeing.",
+            "It didn't wake. You backed away carefully and left it where it was.",
+        ],
+        2: [
+            "It was there when you entered the oldwood, moving through a different line of trees at a distance that felt chosen.",
+            "When you stopped it stopped. When you moved it moved. You brought back more than usual.",
+        ],
+        3: [
+            "It has stopped disappearing when you approach the boundary. It's just there most evenings, at the grove edge. You walk past. It doesn't move.",
+            "You're not sure when this became the arrangement. You don't think it was a single decision.",
+        ],
     },
 }
 
@@ -488,7 +564,8 @@ VISITOR_ARCS = [
                 "unlock_periods": None,
                 "min_gap_game_seconds": 0,
                 "boxes": [
-                    "A druid arrived at the grove edge and took his time looking before he spoke. He said he'd heard about the grove and wanted to see it for himself. He had the manner of someone for whom seeing things properly was a matter of principle.",
+                    "A druid arrived at the grove edge and took his time looking before he spoke.",
+                    "He said he'd heard about the grove and wanted to see it for himself. He had the manner of someone for whom seeing things properly was a matter of principle.",
                 ],
             },
             {

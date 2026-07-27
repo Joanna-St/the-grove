@@ -706,9 +706,181 @@ _TB_H      = 100
 _TB_PAD    = 10
 _TB_MARGIN = 20
 
+# Rune discs (continue / dismiss) — a small hand-carved stone disc per state,
+# same "material" for both, only the etched rune and tint differ. The rune is
+# engraved (dark shadow offset up-left, bright highlight offset down-right)
+# rather than painted on top of the stone.
+
+_RUNE_CANVAS      = 120   # reference coordinate space the shapes are authored in
+_RUNE_STONE_R     = 34
+_RUNE_RIM_SCALE   = 0.78
+_RUNE_JITTER      = [1, -2, 2, -1, 1, -2, 1, -1, 2, -1]   # per-point radius jitter, irregular outline
+_RUNE_RENDER_PX   = 64    # cached surface build resolution
+_RUNE_DISPLAY_PX  = 26    # on-screen size in the text box
+
+_RUNE_GREEN_LIT           = (124, 145, 102)
+_RUNE_GREEN_MID           = (79, 95, 64)
+_RUNE_GREEN_SHADOW        = (41, 51, 33)
+_RUNE_GREEN_OUTLINE       = (21, 28, 17)
+_RUNE_GREEN_RIM           = (30, 36, 23)
+_RUNE_GREEN_GROOVE_SHADOW = (30, 36, 23)
+_RUNE_GREEN_GROOVE_HI     = (185, 214, 158)
+
+_RUNE_RED_LIT           = (150, 105, 95)
+_RUNE_RED_MID           = (106, 70, 63)
+_RUNE_RED_SHADOW        = (51, 31, 27)
+_RUNE_RED_OUTLINE       = (28, 18, 15)
+_RUNE_RED_RIM           = (37, 24, 19)
+_RUNE_RED_GROOVE_SHADOW = (37, 24, 19)
+_RUNE_RED_GROOVE_HI     = (227, 166, 150)
+
+_RUNE_ARROW_STROKES = [
+    [(46, 42), (63, 54), (71, 60)],
+    [(71, 60), (62, 67), (45, 78)],
+]
+_RUNE_X_STROKES = [
+    [(44, 42), (56, 54), (61, 60), (66, 66), (76, 78)],
+    [(76, 41), (65, 53), (61, 59), (56, 65), (45, 77)],
+]
+
+_TB_GLYPH_BOUNCE_PERIOD = 0.9
+_TB_GLYPH_BOUNCE_AMP    = 3
+
+_rune_disc_cache = {}
+
+
+def _lerp_color(a, b, t):
+    return tuple(round(a[i] + (b[i] - a[i]) * t) for i in range(3))
+
+
+def _quad_bezier_points(p0, p1, p2, n=8):
+    pts = []
+    for i in range(n + 1):
+        t = i / n
+        mt = 1 - t
+        x = mt * mt * p0[0] + 2 * mt * t * p1[0] + t * t * p2[0]
+        y = mt * mt * p0[1] + 2 * mt * t * p1[1] + t * t * p2[1]
+        pts.append((x, y))
+    return pts
+
+
+def _sample_multi_bezier(points, n_per_seg=8):
+    """points: [p0, ctrl0, p2, ctrl1, p4, ...] — chained quadratic segments."""
+    result = []
+    for i in range(0, len(points) - 2, 2):
+        seg = _quad_bezier_points(points[i], points[i + 1], points[i + 2], n_per_seg)
+        if result:
+            seg = seg[1:]
+        result.extend(seg)
+    return result
+
+
+def _build_stone_poly(cx, cy, base_r, jitter):
+    """Smooth closed irregular blob — a hand-carved stone outline, not a perfect circle."""
+    n = len(jitter)
+    pts = []
+    for i in range(n):
+        angle = 2 * math.pi * i / n
+        r = base_r + jitter[i]
+        pts.append((cx + r * math.cos(angle), cy + r * math.sin(angle)))
+    mids = [((pts[i][0] + pts[(i + 1) % n][0]) / 2,
+             (pts[i][1] + pts[(i + 1) % n][1]) / 2) for i in range(n)]
+    poly = []
+    for i in range(n):
+        poly.extend(_quad_bezier_points(mids[i - 1], pts[i], mids[i], n=6))
+    return poly
+
+
+def _draw_thick_polyline(surface, pts, color, width):
+    """Approximates a round-capped, round-jointed stroke with plain line/circle draws."""
+    r = max(1, width // 2)
+    ipts = [(round(x), round(y)) for x, y in pts]
+    for i in range(len(ipts) - 1):
+        pygame.draw.line(surface, color, ipts[i], ipts[i + 1], width)
+    for p in ipts:
+        pygame.draw.circle(surface, color, p, r)
+
+
+def _build_rune_disc(is_continue):
+    size  = _RUNE_RENDER_PX
+    scale = size / _RUNE_CANVAS
+    cx = cy = size / 2
+    surf = pygame.Surface((size, size), pygame.SRCALPHA)
+
+    if is_continue:
+        lit, mid, shadow = _RUNE_GREEN_LIT, _RUNE_GREEN_MID, _RUNE_GREEN_SHADOW
+        outline, rim     = _RUNE_GREEN_OUTLINE, _RUNE_GREEN_RIM
+        groove_shadow, groove_hi = _RUNE_GREEN_GROOVE_SHADOW, _RUNE_GREEN_GROOVE_HI
+        strokes = _RUNE_ARROW_STROKES
+    else:
+        lit, mid, shadow = _RUNE_RED_LIT, _RUNE_RED_MID, _RUNE_RED_SHADOW
+        outline, rim     = _RUNE_RED_OUTLINE, _RUNE_RED_RIM
+        groove_shadow, groove_hi = _RUNE_RED_GROOVE_SHADOW, _RUNE_RED_GROOVE_HI
+        strokes = _RUNE_X_STROKES
+
+    def to_px(p):
+        return (p[0] * scale, p[1] * scale)
+
+    # Stone body — banded gradient (nested scaled-down copies of the blob),
+    # shadow at the edge fading to lit toward the centre.
+    poly = [to_px(p) for p in _build_stone_poly(60, 60, _RUNE_STONE_R, _RUNE_JITTER)]
+    steps = 8
+    for i in range(steps, 0, -1):
+        t = i / steps
+        ring = [(cx + (x - cx) * t, cy + (y - cy) * t) for x, y in poly]
+        if t > 0.5:
+            col = _lerp_color(mid, shadow, (t - 0.5) / 0.5)
+        else:
+            col = _lerp_color(mid, lit, (0.5 - t) / 0.5)
+        pygame.draw.polygon(surf, col, ring)
+    pygame.draw.polygon(surf, outline, poly, max(1, round(2 * scale)))
+
+    rim_poly = [to_px(p) for p in _build_stone_poly(
+        60, 60, _RUNE_STONE_R * _RUNE_RIM_SCALE, [j * _RUNE_RIM_SCALE for j in _RUNE_JITTER])]
+    pygame.draw.lines(surf, rim, True, rim_poly, max(1, round(1.6 * scale)))
+
+    # Engraved rune — shadow (up-left) / mid-tone base / highlight (down-right)
+    off      = max(1.0, 1.0 * scale)
+    base_w   = max(1, round(4.6 * scale))
+    shadow_w = max(1, round(2.6 * scale))
+    hi_w     = max(1, round(2.1 * scale))
+    for stroke in strokes:
+        pts = _sample_multi_bezier([to_px(p) for p in stroke])
+        shadow_pts = [(x - off, y - off) for x, y in pts]
+        hi_pts     = [(x + off, y + off) for x, y in pts]
+        _draw_thick_polyline(surf, shadow_pts, groove_shadow, shadow_w)
+        _draw_thick_polyline(surf, pts, mid, base_w)
+        _draw_thick_polyline(surf, hi_pts, groove_hi, hi_w)
+
+    return surf
+
+
+def _get_rune_disc(is_continue):
+    if is_continue not in _rune_disc_cache:
+        _rune_disc_cache[is_continue] = _build_rune_disc(is_continue)
+    return _rune_disc_cache[is_continue]
+
+
+def _draw_continue_glyph(surface, cx, cy, anim_time):
+    """Green rune disc, bounces sideways — hints there's another box to advance to."""
+    disc   = _get_rune_disc(True)
+    offset = _breathe(anim_time, _TB_GLYPH_BOUNCE_PERIOD, _TB_GLYPH_BOUNCE_AMP)
+    scaled = pygame.transform.smoothscale(disc, (_RUNE_DISPLAY_PX, _RUNE_DISPLAY_PX))
+    surface.blit(scaled, scaled.get_rect(center=(cx + offset, cy)))
+
+
+def _draw_dismiss_glyph(surface, cx, cy, anim_time):
+    """Red rune disc, zooms in/out — hints this is the last box, dismissible."""
+    disc = _get_rune_disc(False)
+    zoom = 1.0 + 0.1 * halo_pulse(anim_time)
+    px   = max(1, round(_RUNE_DISPLAY_PX * zoom))
+    scaled = pygame.transform.smoothscale(disc, (px, px))
+    surface.blit(scaled, scaled.get_rect(center=(cx, cy)))
+
 
 def draw_text_box(surface, font, font_sm, speaker, text, options,
-                  hover_idx, screen_w, screen_h, right_inset=0):
+                  hover_idx, screen_w, screen_h, right_inset=0,
+                  has_more=False, anim_time=0.0):
     """
     Fixed bottom panel. Two modes:
       options mode — options is a non-empty list of (label, detail, available);
@@ -776,9 +948,12 @@ def draw_text_box(surface, font, font_sm, speaker, text, options,
                 t = font.render(ln, True, (210, 225, 200))
                 surface.blit(t, (bx + _TB_PAD, content_y + i * lh))
 
-        hint = font_sm.render("[ESC] dismiss", True, (60, 85, 50))
-        surface.blit(hint, (bx + bw - hint.get_width() - _TB_PAD,
-                            by + _TB_H - font_sm.get_linesize() - 4))
+        glyph_cx = bx + bw - _TB_PAD - _RUNE_DISPLAY_PX // 2
+        glyph_cy = by + _TB_H - _TB_PAD - _RUNE_DISPLAY_PX // 2
+        if has_more:
+            _draw_continue_glyph(surface, glyph_cx, glyph_cy, anim_time)
+        else:
+            _draw_dismiss_glyph(surface, glyph_cx, glyph_cy, anim_time)
 
     return item_rects
 

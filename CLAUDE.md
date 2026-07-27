@@ -60,10 +60,12 @@ Full phase descriptions in design doc.
 ## Current Phase
 **Phase 5 — Art & Polish**
 
-Sprites and background wired into renderer.py, locked-area desaturation
-implemented (Session 12). Next step: UI polish items from IDEAS.md (Shield
-rename, resource storage caps, multi-box visual indicator, fullscreen toggle,
-custom icon, text cross-reference pass, blink dog forage pool bug).
+HUD layout pass (Session 13), idle animation/halo follow-ups (Session 14), and
+dialogue box overflow + rune-disc controls (Session 15) are done. Next step:
+remaining UI polish items from IDEAS.md (Shield rename, resource storage caps,
+fullscreen toggle, custom icon, text cross-reference pass, blink dog forage
+pool bug, help/info menu design, player name placement, druid/owlbear sprite
+redesign, flumph size).
 
 ## Phase 6 — Post-Launch Additions (not yet scoped)
 - Creature max-bond perks (design.md specs one per creature: Pseudodragon/Stirge early-warning, Flumph/Displacer Beast event dampening, Pixie wildcard intervention, Blink Dog yield boost, Moss Wisp grove-health-gated boost). Deliberately deferred post-launch — half of these assume a negative/threat tagging axis for grove + visitor events that doesn't exist yet (4c/4d shipped as pure flavour, no good/bad categorisation). Revisit scoping then.
@@ -629,3 +631,67 @@ to `game/renderer.py` and confirmed before the next round (per
   storage caps, multi-box visual indicator, fullscreen toggle, custom icon,
   text cross-reference pass, blink dog forage-pool bug) plus the six new
   items above.
+
+### Session 15 — [27.07.2026]
+**Phase 5 — Dialogue box overflow fixed; Enter-driven multi-box controls;
+rune-disc continue/dismiss glyphs.**
+
+**Dialogue overflow.** `draw_text_box` (game/renderer.py) wraps text into
+lines but only ever draws `lines[:3]` — anything beyond that was silently
+dropped, no truncation indicator. Scanned `dialogue.py` for every string over
+200 characters: 25 hits, almost entirely one pool — 23 of the 24
+`FIXED_EVENTS` entries (essentially the whole pool) plus 2 `VISITOR_ARCS`
+boxes. Agreed a ~100–170 char/box target, splitting at natural sentence/clause
+boundaries rather than a strict midpoint; reviewed every proposed split with
+the user before writing anything. Result: all 23 `FIXED_EVENTS` entries
+converted from single strings to `boxes` lists (2–3 boxes each); the druid's
+opening `VISITOR_ARCS` beat also split (2 boxes) after the user confirmed
+live that it was overflowing. The soldier's flagged 206-char box was checked
+too and confirmed fine as-is (soldier arc triggers on `displacer_beast.bond_level
+>= 3`, not a day/area gate like most other visitor arcs). `_event_text()` in
+main.py updated to accept either a plain string or a list transparently, so
+`FIXED_EVENTS`/`REPEATABLE_EVENTS` entries that weren't split keep working
+unchanged — no changes needed in `creatures.py`, since `pending_event["text"]`
+is carried opaquely. Some splits (owlbear[1], owlbear[2]) run a bit over the
+target range where no clean earlier break existed without orphaning a very
+short clause — accepted deliberately rather than forced.
+
+**Text-box controls.** ESC no longer touches text-mode boxes at all — the
+"suppressed on non-last box" special case from Session 9 is gone entirely,
+since it was actively lying (the old `[ESC] dismiss` hint stayed on screen
+even while ESC did nothing). ESC still closes the options-mode menu and still
+quits when nothing is open. `Enter`/numpad-Enter now drives text-mode
+boxes — advances to the next box if there is one, dismisses if it's the
+last — mirroring click-anywhere exactly. Deliberately not labelling the key
+on-screen: since click and Enter both do the same thing, a "[Enter]" label
+would misleadingly favour one input over the other; full key reference is
+being left for the future help-menu (IDEAS.md).
+
+**Continue/dismiss glyphs.** Replaced the old text hint with two rune-disc
+glyphs, iterated through several rounds of visual mockups (published as an
+HTML/SVG Artifact for review before touching any code) before implementation:
+plain arrow/X → two-line chiselled-groove strokes → circular stone-disc base
+→ rune engraved *into* the stone (dark shadow offset up-left, bright highlight
+offset down-right — the same trick used in reverse from Session 13's raised
+sprite-halo highlighting) rather than painted on top → whole disc tinted
+green/red and animated (not just the etched line). Final version in
+`game/renderer.py`: `_build_stone_poly()` generates a smooth irregular blob
+(circle with per-point radius jitter, quadratic-bezier-smoothed) reused for
+both the stone body and its inner rim; `_build_rune_disc()` composites the
+stone (banded-gradient fill via nested scaled polygons, no per-pixel loop),
+rim, and engraved rune onto a cached 64px surface per state (`_get_rune_disc()`,
+built once, not per frame — same caching pattern as the existing halo code);
+`_draw_continue_glyph()` bounces the whole disc sideways (reuses `_breathe`),
+`_draw_dismiss_glyph()` scales the whole disc in/out (reuses `halo_pulse`,
+swapped from an initial brightness-pulse version per user feedback — the
+brightness pulse read fine but the user wanted zoom instead). Verified by
+rendering both discs to a throwaway PNG and viewing it directly, not just
+trusting the code to be correct.
+- **Known tuning gap, deliberately left as-is:** the dismiss disc's zoom
+  reads a bit too jittery/wobbly at the current amplitude — signed off with
+  that caveat rather than iterating further this session; logged in
+  `IDEAS.md` for a later tuning pass.
+- **Next:** remaining Phase 5 IDEAS.md backlog (Shield rename, resource
+  storage caps, fullscreen toggle, custom icon, text cross-reference pass,
+  blink dog forage-pool bug, help/info menu design, player name placement,
+  druid/owlbear sprite redesign, flumph size, dismiss-glyph zoom tuning).

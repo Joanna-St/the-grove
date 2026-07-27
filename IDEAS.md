@@ -14,6 +14,15 @@ Things to consider for later phases. Not current phase scope.
 
 - **"Shield" display name** — "Shield" is functional but may not fit the grove tone. Consider something more druidic/Feywild-flavoured (e.g. "Ward", "Veil", "Sanctity"). Decide when the full HUD is finalised in Phase 5.
 
+- **Too many pop-up interactions even at regular (non-dev) speed** — flagged
+  Session 15 by the user: creature events, grove events, and visitor beats
+  are firing too frequently in normal play. Revisit the interval config
+  values in `config.json` (`creature_event_interval_seconds`,
+  `creature_event_stagger_seconds`, `grove_event_interval_seconds`, and the
+  visitor arc gap timings in `dialogue.py`'s `VISITOR_ARCS`) and reduce
+  frequency. Needs a normal-speed playtest to judge the right cadence, not
+  just a dev-speed check.
+
 ---
 
 ## Bugs / Polish
@@ -24,15 +33,10 @@ Things to consider for later phases. Not current phase scope.
   this can show up before the blink dog has arrived. Either gate that line on
   `creatures.blink_dog.is_present` or split FORAGE into presence-gated pools.
 
-- **Multi-box text: visual "next" indicator and ESC hint** — when a text box has more content to click through (e.g. visitor beat 2a→2b), there's no visual cue that another box follows. ESC is suppressed on non-last boxes (so it can't be used to close), but the text box still shows "[ESC] close" in the keybinds. Consider: (A) hiding or greying out the ESC hint on non-last boxes, (B) adding a small "▶" / "more..." glyph at the bottom-right. Revisit in Phase 5 alongside other UI polish.
-
-- **Event text overflows the text box** — `draw_text_box` (game/renderer.py)
-  caps event/dialogue text at 3 wrapped lines (`lines[:3]`); anything beyond
-  that is silently cut off. The blink dog Bond 1 fixed event (5 sentences)
-  overruns this badly. Revisit the FIXED_EVENTS / REPEATABLE_EVENTS text in
-  `dialogue.py` — either trim the longer entries to fit ~3 lines at the
-  current box width/font, or split into multi-box. Worth a pass over all 8 creatures' fixed + repeatable events, not
-  just blink dog.
+- **Dismiss-glyph zoom feels a bit too wobbly** — the rune disc's zoom
+  animation (`_draw_dismiss_glyph`, game/renderer.py) reads slightly too
+  jittery at the current amplitude/speed. Left as-is for now (signed off
+  with the caveat), but worth tuning the scale range or easing later.
 
 - **Text pass: maximise area/creature cross-references** — go over all written
   text (FORAGE, TEND_STATUE, FIXED_EVENTS, REPEATABLE_EVENTS, GROVE_EVENTS,
@@ -46,6 +50,20 @@ Things to consider for later phases. Not current phase scope.
   shape beforehand (mirroring the area greyscale-to-colour treatment), which
   fills in with the full sprite once the creature actually arrives. Nice-to-have,
   not core to the Phase 5 art swap — revisit once base sprite integration is done.
+
+- **Locked-area desaturation isn't reading well in practice** — the Session 12
+  implementation uses rough rectangular `_ZONE_RECTS` (game/renderer.py) since
+  no real per-zone art masks exist; flagged then as "revisit if the rectangle
+  edges read as visually wrong" — user confirmed Session 15 that it does. Plan:
+  manually trace each locked area (thicket, canopy, feywild_boundary, oldwood)
+  against `background.png` and add them as separate mask assets, replacing the
+  rectangle approximation.
+
+- **Dawn/day/dusk/night transition isn't reading well** — flagged Session 15,
+  no root cause diagnosed yet. `draw_period_tint()` (game/renderer.py) is the
+  overlay driving this since the sky got baked into the background art
+  (Session 12) — needs investigation into whether it's a timing issue, a
+  colour/opacity issue, or something else before deciding a fix.
 
 ---
 
@@ -106,7 +124,8 @@ Things to consider for later phases. Not current phase scope.
   extending the statue's existing event-if-pending-else-action click pattern
   to the druid instead. Revisit after living with that decision longer —
   flagged Session 14 as worth a second look, no specific complaint yet, just
-  "possibly add after all."
+  "possibly add after all." User asked Session 15 for an explicit pros/cons
+  discussion next time before deciding either way.
 
 - **Player name display — re-add somewhere on-screen** — removed from the
   live HUD in Session 13 issue 3 (alongside the keybinds cheat sheet);
@@ -118,13 +137,17 @@ Things to consider for later phases. Not current phase scope.
   issue 6) was extracted from the background art via colour-threshold
   segmentation purely to drive the halo silhouette; it's rough (uneven edges,
   slight green tinge) and only looks acceptable because the halo blurs it
-  heavily. Clean up the extraction or replace with an AI-generated cutout.
+  heavily. User decided Session 15: trace it manually as a separate asset
+  (same approach as the locked-area masks above) rather than another AI
+  extraction pass.
 
-- **Druid and owlbear sprite redesign pass** — of all 8 creatures + the
-  druid, these two read as most visually out of place against the rest of
-  the art (per user feedback, Session 14). Worth a dedicated look — possibly
-  new AI generation passes, similar to how owlbear/displacer_beast needed
-  reference images in Session 10.
+- **Sprite pixelation consistency — druid, owlbear, displacer_beast (maybe
+  blink_dog)** — these read as most visually out of place against the rest
+  of the art (flagged Session 14 re: druid/owlbear specifically). Session 15
+  reframed this as a pixelation-level mismatch: try regenerating those
+  smoother-looking sprites to be more pixelated, OR regenerate the rest of
+  the set to be less pixelated to match them instead — a decision the user
+  wants to make next session, not just a redo.
 
 - **Reduce flumph sprite size** — flagged Session 14, not yet sized or
   positioned.

@@ -300,11 +300,13 @@ def main():
                 "ttl": None, "hover": -1, "boxes": None, "box_idx": 0, "is_visitor": False}
 
     def _event_text(creature, text):
+        boxes = text if isinstance(text, list) else None
+        first = text[0] if isinstance(text, list) else text
         return {"mode": "text",
                 "speaker": creature.name.replace("_", " ").title(),
-                "text": text,
+                "text": first,
                 "creature": None, "pool": None, "feed_pool": None,
-                "ttl": None, "hover": -1, "boxes": None, "box_idx": 0, "is_visitor": False}
+                "ttl": None, "hover": -1, "boxes": boxes, "box_idx": 0, "is_visitor": False}
 
     def _visitor_text(text, speaker, boxes=None):
         return {"mode": "text", "speaker": speaker, "text": text,
@@ -335,18 +337,21 @@ def main():
                 if event.key == pygame.K_ESCAPE:
                     if show_areas_panel:
                         show_areas_panel = False
-                    elif text_box and text_box["mode"] == "text":
+                    elif text_box and text_box["mode"] == "options":
+                        text_box = None
+                    elif not text_box:
+                        running = False
+                    # text mode: ESC does nothing; Enter/click advance or dismiss
+                elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                    if text_box and text_box["mode"] == "text":
                         boxes = text_box.get("boxes")
                         if boxes is not None and text_box["box_idx"] < len(boxes) - 1:
-                            pass  # non-last box: ESC suppressed to hint there's more
+                            text_box["box_idx"] += 1
+                            text_box["text"] = boxes[text_box["box_idx"]]
                         else:
                             if text_box.get("is_visitor"):
                                 events.advance_visitor(resources, time_sys.game_seconds)
                             text_box = None
-                    elif text_box:
-                        text_box = None
-                    else:
-                        running = False
                 elif event.key == pygame.K_s:
                     save_load.save_game(time_sys, resources, areas, creatures, events, player_name)
                     center_flash_text, center_flash_ttl = "Saved.", 2.5
@@ -545,10 +550,14 @@ def main():
         if text_box:
             opts = (_creature_menu_options(text_box["creature"], resources, config)
                     if text_box["mode"] == "options" else [])
+            boxes = text_box.get("boxes")
+            has_more = boxes is not None and text_box["box_idx"] < len(boxes) - 1
             draw_text_box(game_surf, font, font_sm,
                           text_box["speaker"], text_box["text"],
                           opts, text_box["hover"], game_w, game_h,
-                          right_inset=text_box_right_inset)
+                          right_inset=text_box_right_inset,
+                          has_more=has_more,
+                          anim_time=pygame.time.get_ticks() / 1000.0)
 
         # Centre flash (errors, save confirmation)
         if center_flash_ttl > 0:
