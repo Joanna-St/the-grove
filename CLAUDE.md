@@ -62,13 +62,18 @@ Full phase descriptions in design doc.
 
 HUD layout pass (Session 13), idle animation/halo follow-ups (Session 14),
 dialogue box overflow + rune-disc controls (Session 15), statue/druid
-event-action menus + Shield→Ward rename (Session 16), and the statue
-click-rect fix + player name/help-menu UI (Session 17) are done. Next step:
-remaining UI polish items from IDEAS.md (resource storage caps, fullscreen
-toggle, custom icon, text cross-reference pass, blink dog forage pool bug,
-druid/owlbear sprite redesign, flumph size, dismiss-glyph zoom tuning,
-locked-area/statue manual tracing, day/night transition bug, sprite
-pixelation-consistency decision, event frequency tuning).
+event-action menus + Shield→Ward rename (Session 16), the statue
+click-rect fix + player name/help-menu UI (Session 17), and a full art
+redo of the entire game — background, statue, and all 8 creatures,
+regenerated via GPT image tools and finalised in `assets/` (Session 18)
+— are done. Next step: wire the new art into `renderer.py` (placement
+coordinates, scale, flips, and bloom effects are all recorded in
+`docs/phase5_art_spec.csv` — no need to re-derive them), then re-assess
+the remaining UI polish items from IDEAS.md (resource storage caps,
+fullscreen toggle, custom icon, text cross-reference pass, blink dog
+forage pool bug, dismiss-glyph zoom tuning, locked-area/statue manual
+tracing, day/night transition bug, event frequency tuning) now that the
+art driving several of them has changed.
 
 ## Phase 6 — Post-Launch Additions (not yet scoped)
 - Creature max-bond perks (design.md specs one per creature: Pseudodragon/Stirge early-warning, Flumph/Displacer Beast event dampening, Pixie wildcard intervention, Blink Dog yield boost, Moss Wisp grove-health-gated boost). Deliberately deferred post-launch — half of these assume a negative/threat tagging axis for grove + visitor events that doesn't exist yet (4c/4d shipped as pure flavour, no good/bad categorisation). Revisit scoping then.
@@ -825,3 +830,160 @@ from before the menu existed, not a deliberate design rule.
   redesign, flumph size, dismiss-glyph zoom tuning, statue cutout retrace,
   locked-area desaturation retrace, day/night transition bug, sprite
   pixelation-consistency decision, event/interaction frequency tuning.
+
+### Session 18 — [05.10.2026]
+**Phase 5 — Full art redo (background, statue, all 8 creatures) via GPT
+image generation; all final assets in place, not yet wired into renderer.py.**
+
+User got a month of GPT Pro specifically to redo the game's art, prompted by
+several open IDEAS.md items (druid/owlbear redesign, flumph size, statue
+cutout quality, locked-area desaturation) converging on "the art needs a
+full pass, not spot fixes." Worked through every asset in order of
+appearance, item by item: discuss → draft a GPT prompt → sign off → generate
+→ iterate with corrections → mock up in place on the new background → lock.
+`docs/phase5_art_spec.csv` now carries the full prompt, correction history,
+and final placement coordinates for all 11 assets — treat it as the source
+of truth for implementation, not this log.
+
+**Key decisions, in build order:**
+- **Background** — redone from scratch: dropped the old cobblestone-plaza/
+  tombstone styling (user: "this is nature, not a graveyard") for a rougher
+  Stonehenge-like standing-stone treatment; the 4 lockable zones (Thicket,
+  Canopy, Feywild Boundary, Oldwood) are now actually visually distinct
+  regions instead of Session 12's guessed rectangles; sky is a chroma-keyed
+  magenta gap meant to be replaced with a code-drawn gradient (not baked
+  in), so day/night can eventually tint a real sky instead of a flat
+  full-scene overlay. Two refinement rounds (Feywild Boundary widened then
+  made full-height instead; Oldwood darkened for contrast against Canopy).
+- **Statue** — split out of the background into its own sprite for the
+  first time (was baked into background art since Phase 1.5; Session 13's
+  halo/click-rect needed a rough hand-extracted cutout as a workaround).
+  Reimagined as living wood rooted into the ground rather than carved
+  stone, standing (not seated), no base/plinth — user's call, ties the
+  statue more directly to the grove being alive. A root-to-ground alpha-
+  feather-plus-contact-shadow blend technique was prototyped and rejected
+  (didn't land visually); parked in IDEAS.md for another attempt later.
+- **Druid** — the roughest redo of the session, several false starts: too
+  pixel-y / crude face → too many nature elements + statue-like wooden face
+  → lost pixel-art style entirely (went painterly) → a fresh prompt nailed
+  pixel art + humanoid face but read a bit feminine (accepted) → **second
+  pass this session**: user decided it still wasn't right after all,
+  redone again from scratch (no reference to the first redo) through an
+  ornate fantasy-cover-art attempt, a too-dark/ominous real-costume-photo-
+  referenced attempt, and a proportions-off attempt, before landing on a
+  simpler, muted dark-green/gray/brown cloaked figure with a plain staff.
+  That final generation came back on a solid black (non-transparent)
+  canvas and needed a flood-fill background removal before a cleanly-
+  transparent regeneration was produced.
+- **Blink Dog** — first pass accepted the dog itself immediately; three
+  rounds just to tame the teleport-shimmer effect (too large/dominant →
+  recolored blue + shrunk to the legs → a baked-in duplicate "afterimage"
+  leg removed, since any afterimage effect is meant to be a code-side
+  compositing trick, same idea as displacer_beast's existing ghost-offset).
+  **Second pass this session:** fidelity bumped to match how detailed the
+  later creatures turned out (owlbear/dragon/flumph), since the first
+  version read as flat/blocky by comparison once the whole cast existed
+  side by side.
+- **Stirge** — closest to one-shot of the whole session; needed its
+  proboscis blended more naturally into the face and its fur mane moved
+  from a chest-collar to the head, then a bolder outline to match the
+  rest of the set's ink weight (cost some fur texture, accepted).
+- **Owlbear** — went through a standing pose first (rejected — the Thicket
+  has no open ground for a large standing creature) before landing on a
+  lying-down, head-on-paws pose that's deliberately corner-cropped by the
+  canvas edge. This generation is also where the **alpha glow-fringe bug**
+  was first caught: a faint near-invisible dark vignette extended almost to
+  the full canvas edge, which `Image.getbbox()` (and `renderer.py`'s
+  `_load_sprite_raw()`, by the same logic) reads as real content — silently
+  undersizing and mispositioning the sprite in every composite until a
+  stricter alpha threshold (only alpha>128 counts) was used instead. This
+  recurred on several later creatures (pseudodragon, blink_dog v3, pixie,
+  displacer_beast) — always checked for and fixed the same way before
+  trusting any placement math.
+- **Pseudodragon** — redone toward a slender, Chinese-dragon-like serpentine
+  body (vs. the old stubby chibi shape), posed standing flat-footed (not
+  gripping/coiled around a branch, since the background is a flat painted
+  image — nothing can wrap behind unseen geometry convincingly) on a branch
+  matched by eye to the actual canopy art. **Second pass this session:**
+  recolored brown/red ourselves with a script rather than another GPT round
+  — a naive hue-multiply first attempt wrapped the wings' near-red hue
+  through teal by accident (it sat just under the 360°/0° wrap point);
+  fixed with a proper shortest-path circular hue blend instead.
+- **Flumph** — Session 10 had deliberately dropped the official twin-eye-
+  stalk/disc-body anatomy for a jellyfish-dome silhouette, reasoning it was
+  unreadable at the old lower fidelity. Reversed that decision this session
+  now that fidelity is much higher — leaned fully into the official
+  anatomy, recolored pink/coral with blue tendril-tips (first pass kept the
+  old gold palette by mistake) and the tendrils' translucency sold via
+  rendering style rather than true alpha (real per-pixel translucency was
+  discussed, not pursued).
+- **Pixie** — tried keeping the *original*, never-redone sprite first (user
+  liked it); it does have genuine alpha transparency, but once placed in
+  the actual scene its low fidelity and warm palette clashed hard against
+  both the newer art and the cool-toned Feywild Boundary, and a black
+  smear/shadow artifact beneath it read as a mistake. Redone instead with a
+  deliberately trimmed prompt (dropped descriptive redundancy the reference
+  image already covered) — worked in one pass.
+- **Moss Wisp** — no official D&D reference exists for this one (original
+  to the game), so this was pure art-direction discussion rather than
+  reference-matching. User felt the original read as a solid glossy ball
+  with cartoon dot-eyes, fighting its "barely a creature, more presence
+  than creature" brief; redirected toward genuine translucency and a
+  brighter, softer glow, with the eye-markings almost dissolving into the
+  light rather than reading as a face. Also the origin of a new **render-
+  time ambient-bloom technique** (a blurred colored ellipse composited
+  behind the sprite, conceptually the same as the statue's existing glow in
+  `draw_statue()`) — extended to the pixie and flumph too at the user's
+  request; not yet ported into `renderer.py`.
+- **Displacer Beast** — the hardest fight of the session. The lore (design.md)
+  is explicit that it's six-limbed (4 legs + 2 tentacles) and the old sprite
+  read as a slender house-cat, not a proper panther. Several GPT rounds
+  hallucinated badly — tentacle tips became clawed paw/hand shapes (reading
+  as a 6-legged creature), hind legs splayed unnaturally, fur turned into
+  swirly mane tufts, physique went bodybuilder-sinewy instead of a fuller
+  panther build. Fixed by having the user scrap an overloaded prompt
+  entirely and write a minimal one that just points at the D&D reference
+  image for anatomy and states only the deltas (calmer demeanor, our
+  palette) instead of re-describing everything the reference already shows
+  — that version succeeded. A second variant (done conversationally by the
+  user directly with GPT, not a prompt drafted here) pushed for an even
+  fuller/fluffier build; fur got shaggier and tentacle tips slightly
+  softer, but the extra fullness was worth it — that's the version shipped.
+- **Reusable techniques that came out of this session:** per-image alpha
+  glow-fringe detection (compare `getbbox()` against a manually-thresholded
+  bbox before trusting any size/position math) — should become a standard
+  check for any future sprite work; the render-time ambient-bloom
+  compositing trick; generating creatures on a transparent background can
+  still carry a *faint* dark vignette even when corners read as fully
+  transparent — worth spot-checking, not just trusting "it previewed with
+  a checkerboard."
+
+**Finalisation.** Once every asset was signed off, all final files were
+copied into `assets/sprites/` and `assets/background/background.png`
+(overwriting the old art directly — git history preserves the previous
+versions), including: baking the owlbear's needed horizontal flip directly
+into its saved file (so no runtime flip logic is needed later), and running
+the alpha-threshold cleanup on every creature that had the glow-fringe bug
+(owlbear, pseudodragon, blink_dog, pixie, displacer_beast, plus stirge as a
+precaution) — except the moss wisp, whose soft translucent edge falloff is
+intentional and was left untouched. The scratch `assets/_temp/` working
+folder (every mockup iteration, rejected sprite versions, intermediate test
+crops) was deleted entirely once `docs/phase5_art_spec.csv` was confirmed to
+already contain every placement coordinate, scale, flip flag, and bloom
+parameter needed to reconstruct the composite from scratch — verified by
+actually rebuilding it from the final `assets/` files against the spec's
+recorded numbers before deleting the working folder, and it matched exactly.
+
+- **Decision:** `docs/phase5_art_spec.csv` is now the authoritative record
+  of every sprite's placement (position/scale/flip, in the pre-crop
+  1536×1024 background coordinate space the renderer's existing
+  `_scaled_background()` already targets) — read it first when wiring the
+  new art into `renderer.py`, don't re-derive positions by eye.
+- **Next session (fresh chat recommended):** implement the new art in
+  `renderer.py` — swap `_SPRITE_LAYOUT` fractions for the recorded
+  coordinates, re-measure `_ZONE_RECTS` against the new background's now-
+  actually-distinct zones, build the code-drawn sky gradient to show
+  through the background's chroma-keyed magenta gap, port the ambient-
+  bloom technique in for moss_wisp/pixie/flumph, and expect some values to
+  need live in-game adjustment once real window compositing (not a static
+  mockup script) is in play.

@@ -96,21 +96,15 @@ Things to consider for later phases. Not current phase scope.
 
 ## UI / Info
 
-- **Statue halo cutout cleanup** — `assets/sprites/statue.png` (Session 13
-  issue 6) was extracted from the background art via colour-threshold
-  segmentation purely to drive the halo silhouette; it's rough (uneven edges,
-  slight green tinge) and only looks acceptable because the halo blurs it
-  heavily. User decided Session 15: trace it manually as a separate asset
-  (same approach as the locked-area masks above) rather than another AI
-  extraction pass.
-
-- **Sprite pixelation consistency — druid, owlbear, displacer_beast (maybe
-  blink_dog)** — these read as most visually out of place against the rest
-  of the art (flagged Session 14 re: druid/owlbear specifically). Session 15
-  reframed this as a pixelation-level mismatch: try regenerating those
-  smoother-looking sprites to be more pixelated, OR regenerate the rest of
-  the set to be less pixelated to match them instead — a decision the user
-  wants to make next session, not just a redo.
-
-- **Reduce flumph sprite size** — flagged Session 14, not yet sized or
-  positioned.
+- **Statue root/ground blend treatment** — Session 18's full-art redo made
+  the statue a real standalone sprite (living-wood figure rooted into the
+  ground, no base/plinth), which makes the old "rough hand-extracted cutout"
+  item above obsolete. Tried, in a throwaway mockup, blending the sprite's
+  root-tips into the clearing floor via (1) a soft alpha feather on the
+  bottom ~15% of the sprite and (2) a blurred dark contact-shadow ellipse
+  underneath. Mixed result — visibly softer, but didn't quite read right;
+  user chose to skip it and keep the hard-edged sprite as placed. Worth
+  another attempt later with a different technique (color-matching the root
+  tips to the dirt, or scattering a few ground-level moss/grass elements
+  over the seam) once more of the redo set exists and there's more to judge
+  it against.
