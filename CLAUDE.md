@@ -66,14 +66,16 @@ event-action menus + Shield→Ward rename (Session 16), the statue
 click-rect fix + player name/help-menu UI (Session 17), and a full art
 redo of the entire game — background, statue, and all 8 creatures,
 regenerated via GPT image tools and finalised in `assets/` (Session 18)
-— are done. Next step: wire the new art into `renderer.py` (placement
-coordinates, scale, flips, and bloom effects are all recorded in
-`docs/phase5_art_spec.csv` — no need to re-derive them), then re-assess
-the remaining UI polish items from IDEAS.md (resource storage caps,
-fullscreen toggle, custom icon, text cross-reference pass, blink dog
-forage pool bug, dismiss-glyph zoom tuning, locked-area/statue manual
-tracing, day/night transition bug, event frequency tuning) now that the
-art driving several of them has changed.
+— are done, and the new art is wired into the game with a code-drawn
+sky, smooth day/night crossfades, and traced locked-zone masks (Session
+19). Next step: the post-art polish block agreed in Session 19, in order
+(see IDEAS.md "Post-art-integration tuning"): remove displacer beast
+ghost → tighten halo → ambient glow for wisp/pixie/flumph → ground
+shadows → idle animation pass → UI pass (bond bar relocation +
+shape-accurate click areas). Then the remaining IDEAS.md backlog
+(resource storage caps, fullscreen toggle, custom icon, text
+cross-reference pass, blink dog forage pool bug, dismiss-glyph zoom
+tuning, event frequency tuning).
 
 ## Phase 6 — Post-Launch Additions (not yet scoped)
 - Creature max-bond perks (design.md specs one per creature: Pseudodragon/Stirge early-warning, Flumph/Displacer Beast event dampening, Pixie wildcard intervention, Blink Dog yield boost, Moss Wisp grove-health-gated boost). Deliberately deferred post-launch — half of these assume a negative/threat tagging axis for grove + visitor events that doesn't exist yet (4c/4d shipped as pure flavour, no good/bad categorisation). Revisit scoping then.
@@ -987,3 +989,102 @@ recorded numbers before deleting the working folder, and it matched exactly.
   bloom technique in for moss_wisp/pixie/flumph, and expect some values to
   need live in-game adjustment once real window compositing (not a static
   mockup script) is in play.
+### Session 19 — [06.10.2026]
+**Phase 5 — New art wired into the game; code-drawn sky with smooth
+day/night crossfades; locked-area zones retraced.**
+
+Approach agreed at the start: integrate the new art as-is first, then fix.
+Worked step by step (discuss → lock intent → implement → render-check →
+user sign-off).
+
+**Sprite placement (`game/renderer.py`).**
+- **Game area 900×640 → 960×640** (`config.json`). The background is 3:2,
+  so at 960×640 it scales by exactly 0.625 with nothing cropped (at 900 it
+  lost 48 background px off each side). Nothing in the code hardcoded 900.
+  Note: `"fullscreen": true` is (and was) on in config — borderless
+  monitor-sized window with the game area centred at native size.
+- **`_SPRITE_LAYOUT` now stores the spec's numbers verbatim** — centre x,
+  bottom-edge y, height, in 1536×1024 background pixels — instead of
+  screen-fraction centre/width. `_bg_transform()` (shared with
+  `_scaled_background()`) maps them to screen via `_sprite_geom()`, which
+  `sprite_pos`/`sprite_rect`/`_blit_sprite`/`draw_halo` all use. Bottom-edge
+  anchoring means height tuning keeps feet planted. Decision: keep the code
+  matching `docs/phase5_art_spec.csv` 1:1 so the spec stays the reference.
+- **Sprite crop threshold alpha ≥1 → ≥20** (`_SPRITE_ALPHA_CUTOFF`). Measured:
+  moss wisp's and statue's faint haze filled their whole canvas at ≥1 (wisp
+  would have drawn ~15% small, statue ~3.5%); every other sprite differs by
+  ≤2px. 20 keeps the wisp's intentional soft edge.
+- **Statue is now drawn as a sprite** (`draw_statue`), with its old
+  hardcoded purple glow re-anchored to the statue's geometry
+  (`_STATUE_GLOW_*`) — currently mostly hidden by the larger sprite, logged.
+  The halo `punch_center` special case was removed: the statue sprite now
+  covers its own halo like every other entity.
+- Draw order kept as-is (statue → druid → creatures): computed every
+  on-screen box and only the blink dog / statue roots overlap, which the
+  existing order already handles — no y-sorting needed.
+- The statue's "red fringe" flagged in the spec was checked — not present
+  in the final file.
+- Verified: every sprite's on-screen box within 1px of the spec converted
+  ×0.625; first-frame halo build down to ~0.35s.
+
+**Sky + day/night.**
+- **`tools/key_sky.py`** (new, Pillow, art-prep only — not game code):
+  keys the magenta sky notch out of `background.png` to real alpha, limited
+  to a box around the notch so the Feywild's purple flowers aren't touched.
+  Un-mixes partially-magenta edge pixels, despills, then a second pass
+  repaints salmon-tinted leaf edges (generator-muddied, not recoverable by
+  un-mixing) from clean neighbouring foliage. Already run in place; the
+  magenta original is in git history. Re-run if the background is ever
+  regenerated.
+- **Sky gradient** drawn behind the (now alpha) background, one per period
+  (`_SKY_COLORS`, `draw_sky`), cached. No stars (user's call). Period tint
+  still applies over the whole scene, sky included.
+- **Smooth crossfades** (user chose to do it now rather than defer):
+  `TimeSystem.period_blend` returns `(from, to, t)` within
+  `period_crossfade_fraction` (config, 0.04 ≈ 24s) of each boundary,
+  including the night→dawn wrap; both sky and tint blend. Game logic still
+  uses the hard `period`.
+- **Period lengths changed** (`time_of_day_segments`): night was only 75s of
+  a 600s day. Now dawn 0–0.10 (60s), day 0.10–0.54, dusk 0.54–0.64 (60s),
+  night 0.64–1.0 — user wanted day ≈ night with short dawn/dusk, night a
+  bit shorter than day. Checked visitor beats: once a beat's period unlocks
+  it stays pending, so shorter dawn/dusk only narrows when beats *appear*.
+  Night tint judged fine at the new length — unchanged.
+
+**Locked-area zones.**
+- `_ZONE_RECTS` rectangles replaced by traced `_ZONE_POLYS` outlines in
+  background pixels. Zone definitions (user): Oldwood = gnarled tree + all
+  trees on the left; Thicket = the entire bramble mass incl. the bottom
+  band; Canopy = upper-right trees; Feywild = right veil strip; Heartstone =
+  the clearing only (no far-forest depth) — at game start only it and the
+  sky have colour. Greyscale kept as the locked look.
+- All locked zones now go through one combined feathered mask
+  (`_locked_zones_mask`) so locked neighbours don't leave a coloured seam.
+  Feather 4% → 1% of screen width.
+- Two correction rounds: user drew red corrections on a preview screenshot
+  — stroke pixels were extracted and mapped back to background coords, then
+  applied loosely (user: hand-drawn, don't be exact); then the back
+  treeline edge was lowered onto the bush tops to remove a coloured band of
+  misty background showing between grey trees and green bushes. Signed off.
+- The sky notch stays coloured automatically (transparent in the
+  background, so the greyscale copy is transparent there too).
+
+**Process notes.**
+- Previews now go in `previews/` inside the project (gitignored) — the
+  scratchpad paths weren't clickable for the user. Saved as a memory.
+- `docs/phase5_art_spec.csv` is malformed (unquoted commas — rows have 7–24
+  columns, the pseudodragon has no row of its own); still greppable for
+  numbers, worth tidying some time. Its rows still say "not yet wired into
+  renderer.py" — they now are.
+- IDEAS.md: logged idle motion pass, halo tightening, bond bar placement,
+  area unlock transition, mist over locked areas, displacer ghost removal,
+  ambient glow, ground shadows, statue glow, shape-accurate click areas;
+  day/night item marked addressed pending a normal-speed check; old
+  locked-area rectangles item removed (done).
+- Owlbear overlapping the message box: checked live by the user, fine.
+
+- **Next:** post-art polish block, in the agreed order — (1) remove
+  displacer beast ghost, (2) tighten halo, (3) ambient glow wisp/pixie/
+  flumph (+ statue glow), (4) ground shadows (design discussion first),
+  (5) idle animation pass, (6) UI pass: bond bar relocation +
+  shape-accurate click areas.

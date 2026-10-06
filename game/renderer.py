@@ -20,24 +20,31 @@ _PERIOD_TINT = {
     "night": (15, 15, 60, 110),
 }
 
-# Sprite placement, fixed by the Session 11 composite mockup:
-# name -> (centre_x_frac, centre_y_frac, width_frac)
+# Sprite placement, from the Session 18 composite mockup (docs/phase5_art_spec.csv),
+# in background-image pixels (the full 1536x1024 background.png, before any
+# scaling/cropping to the window) so values can be checked against the spec
+# directly. Mapped to screen space via _bg_transform().
+# name -> (centre_x, bottom_y, height)
 _SPRITE_LAYOUT = {
-    # Statue art is baked into the background (no _blit_sprite call uses this
-    # entry) — position/size derived from extracting a cutout of it for the
-    # halo silhouette only. See assets/sprites/statue.png.
-    "statue":          (0.470, 0.491, 0.1875),
-    "druid":           (0.313, 0.547, 0.074),
-    "stirge":          (0.633, 0.618, 0.076),
-    "blink_dog":       (0.369, 0.727, 0.083),
-    "owlbear":         (0.105, 0.670, 0.160),
-    "pseudodragon":    (0.700, 0.203, 0.077),
-    "flumph":          (0.870, 0.351, 0.090),
-    "moss_wisp":       (0.209, 0.182, 0.062),
-    "pixie":           (0.959, 0.232, 0.049),
-    "displacer_beast": (0.107, 0.350, 0.198),
+    "statue":          (780,  626, 440),
+    "druid":           (560,  646, 317),
+    "stirge":          (1172, 580, 115),
+    "blink_dog":       (890,  770, 181),
+    "owlbear":         (190, 1050, 391),   # deliberately runs off the bottom edge
+    "pseudodragon":    (1088, 238, 110),
+    "flumph":          (1400, 380, 120),
+    "moss_wisp":       (315,  180,  88),
+    "pixie":           (1420, 180,  63),
+    "displacer_beast": (200,  520, 304),
 }
 
+# Pixels below this alpha don't count as sprite content when cropping. Several
+# generated sprites carry a faint near-invisible haze out to the canvas edge;
+# counting it would undersize and mis-anchor the visible art. Low enough to
+# keep the moss wisp's intentionally soft edge (the spec measured it at >20).
+_SPRITE_ALPHA_CUTOFF = 20
+
+_bg_raw               = None
 _bg_cache             = {}
 _sprite_raw_cache     = {}
 _sprite_scaled_cache  = {}
@@ -47,59 +54,81 @@ _sprite_scaled_cache  = {}
 # Sprite / background loading
 
 def _load_sprite_raw(name):
-    """Loads a sprite and crops it to its non-transparent bounding box."""
+    """Loads a sprite and crops it to its visible bounding box."""
     surf = _sprite_raw_cache.get(name)
     if surf is None:
         raw = pygame.image.load(os.path.join(_SPRITE_DIR, f"{name}.png")).convert_alpha()
-        surf = raw.subsurface(raw.get_bounding_rect(1)).copy()
+        surf = raw.subsurface(raw.get_bounding_rect(_SPRITE_ALPHA_CUTOFF)).copy()
         _sprite_raw_cache[name] = surf
     return surf
 
 
-def _get_sprite_scaled(name, target_w):
-    key = (name, target_w)
+def _get_sprite_scaled(name, target_h):
+    key = (name, target_h)
     surf = _sprite_scaled_cache.get(key)
     if surf is None:
         raw = _load_sprite_raw(name)
-        target_h = max(1, round(raw.get_height() * (target_w / raw.get_width())))
+        target_w = max(1, round(raw.get_width() * (target_h / raw.get_height())))
         surf = pygame.transform.smoothscale(raw, (target_w, target_h))
         _sprite_scaled_cache[key] = surf
     return surf
+
+
+def _load_bg_raw():
+    global _bg_raw
+    if _bg_raw is None:
+        _bg_raw = pygame.image.load(_BG_PATH).convert_alpha()   # sky notch is transparent
+    return _bg_raw
+
+
+def _bg_transform(screen_w, screen_h):
+    """(scale, crop_x, crop_y) mapping background-image pixels to the screen:
+    the background is scaled uniformly to cover the window, then centre-cropped."""
+    raw   = _load_bg_raw()
+    scale = max(screen_w / raw.get_width(), screen_h / raw.get_height())
+    sw, sh = round(raw.get_width() * scale), round(raw.get_height() * scale)
+    return scale, (sw - screen_w) // 2, (sh - screen_h) // 2
 
 
 def _scaled_background(screen_w, screen_h):
     key = (screen_w, screen_h)
     surf = _bg_cache.get(key)
     if surf is None:
-        raw   = pygame.image.load(_BG_PATH).convert()
-        scale = max(screen_w / raw.get_width(), screen_h / raw.get_height())
+        raw   = _load_bg_raw()
+        scale, cx, cy = _bg_transform(screen_w, screen_h)
         sw, sh = round(raw.get_width() * scale), round(raw.get_height() * scale)
         scaled = pygame.transform.smoothscale(raw, (sw, sh))
-        cx, cy = (sw - screen_w) // 2, (sh - screen_h) // 2
         surf = scaled.subsurface((cx, cy, screen_w, screen_h)).copy()
         _bg_cache[key] = surf
     return surf
 
 
+def _sprite_geom(name, screen_w, screen_h):
+    """Screen-space (centre_x, centre_y, width, height) for a sprite's layout."""
+    bx, b_bottom, b_h = _SPRITE_LAYOUT[name]
+    scale, crop_x, crop_y = _bg_transform(screen_w, screen_h)
+    target_h = max(1, round(b_h * scale))
+    raw      = _load_sprite_raw(name)
+    target_w = max(1, round(raw.get_width() * (target_h / raw.get_height())))
+    cx     = round(bx * scale) - crop_x
+    bottom = round(b_bottom * scale) - crop_y
+    return cx, bottom - target_h // 2, target_w, target_h
+
+
 def sprite_pos(name, screen_w, screen_h):
-    cx_f, cy_f, _ = _SPRITE_LAYOUT[name]
-    return (round(cx_f * screen_w), round(cy_f * screen_h))
+    cx, cy, _, _ = _sprite_geom(name, screen_w, screen_h)
+    return (cx, cy)
 
 
 def sprite_rect(name, screen_w, screen_h):
-    cx_f, cy_f, w_f = _SPRITE_LAYOUT[name]
-    cx, cy   = round(cx_f * screen_w), round(cy_f * screen_h)
-    target_w = max(1, round(w_f * screen_w))
-    raw      = _load_sprite_raw(name)
-    target_h = max(1, round(raw.get_height() * (target_w / raw.get_width())))
-    return pygame.Rect(cx - target_w // 2, cy - target_h // 2, target_w, target_h)
+    cx, cy, w, h = _sprite_geom(name, screen_w, screen_h)
+    return pygame.Rect(cx - w // 2, cy - h // 2, w, h)
 
 
 def _blit_sprite(surface, name, screen_w, screen_h, offset=(0, 0), alpha=255):
-    cx_f, cy_f, w_f = _SPRITE_LAYOUT[name]
-    cx, cy   = round(cx_f * screen_w) + offset[0], round(cy_f * screen_h) + offset[1]
-    target_w = max(1, round(w_f * screen_w))
-    img      = _get_sprite_scaled(name, target_w)
+    cx, cy, _, target_h = _sprite_geom(name, screen_w, screen_h)
+    cx, cy = cx + offset[0], cy + offset[1]
+    img    = _get_sprite_scaled(name, target_h)
     if alpha < 255:
         img = img.copy()
         img.set_alpha(alpha)
@@ -109,29 +138,68 @@ def _blit_sprite(surface, name, screen_w, screen_h, offset=(0, 0), alpha=255):
 # ------------------------------------------------------------------
 # Background — locked-area desaturation
 #
-# Rough rectangular zones (fractions of the background image) matching where
-# each area's creatures sit. Heartstone has no rect — it's always unlocked.
+# Zone outlines traced against background.png, in background-image pixels
+# (same space as _SPRITE_LAYOUT). Neighbouring zones share edge points so
+# they meet without gaps. Heartstone (the clearing) is whatever's left and is
+# never greyed; the sky notch is transparent in the background, so the sky
+# drawn behind it stays coloured regardless.
 
-_ZONE_RECTS = {
-    "oldwood":          (0.00, 0.00, 0.27, 0.50),
-    "thicket":          (0.00, 0.50, 0.27, 1.00),
-    "canopy":           (0.30, 0.00, 0.82, 0.40),
-    "feywild_boundary": (0.83, 0.00, 1.00, 1.00),
+_ZONE_POLYS = {
+    # Gnarled tree plus every other tree on the left, including the left half
+    # of the far-forest view; split from canopy below the sky notch.
+    "oldwood": [
+        (0, 0), (770, 0), (770, 380), (707, 388), (698, 368), (666, 358),
+        (611, 358), (540, 354), (470, 385), (450, 420), (380, 440), (330, 470), (250, 460),
+        (180, 425), (100, 400), (0, 390),
+    ],
+    # The whole bramble mass: lower-left corner plus the band along the bottom.
+    "thicket": [
+        (0, 390), (100, 400), (180, 425), (250, 460), (270, 520), (330, 575),
+        (390, 640), (470, 690), (600, 700), (700, 715), (800, 750),
+        (950, 765), (1040, 785), (1100, 808), (1140, 830), (1170, 880),
+        (1200, 925), (1250, 970), (1320, 1024), (0, 1024),
+    ],
+    # Upper-right trees.
+    "canopy": [
+        (770, 0), (1250, 0), (1254, 148), (1215, 170), (1202, 200),
+        (1205, 250), (1225, 285), (1244, 307), (1240, 330), (1190, 380),
+        (1125, 364), (1105, 354), (1085, 325), (1060, 326), (1035, 330),
+        (1015, 362), (980, 358), (940, 355), (913, 358), (859, 368),
+        (770, 380),
+    ],
+    # Purple veil strip, full height, widening to take in the purple flowers;
+    # the path in the bottom-right corner stays part of the clearing.
+    "feywild_boundary": [
+        (1250, 0), (1536, 0), (1536, 1005), (1500, 985), (1430, 916),
+        (1350, 853), (1294, 808), (1290, 760), (1295, 685), (1350, 655),
+        (1385, 610), (1340, 570), (1290, 530), (1330, 482), (1260, 470),
+        (1200, 430), (1190, 380), (1240, 330), (1244, 307), (1225, 285),
+        (1205, 250), (1202, 200), (1215, 170), (1254, 148),
+    ],
 }
 
-_FEATHER_FRAC = 0.04   # feather width as a fraction of screen width
+_FEATHER_FRAC = 0.010   # feather width as a fraction of screen width
 
 _bg_locked_cache = {}
 
 
-def _feathered_zone_mask(w, h, rect_px, feather_px):
-    """Solid-white rect, blurred via downscale/upscale to feather its edges."""
-    mask = pygame.Surface((w, h), pygame.SRCALPHA)
-    pygame.draw.rect(mask, (255, 255, 255, 255), rect_px)
-    small_w = max(1, w // max(1, feather_px))
-    small_h = max(1, h // max(1, feather_px))
+def _locked_zones_mask(screen_w, screen_h, locked_zones, feather_px):
+    """
+    One combined mask for every locked zone, feathered via downscale/upscale.
+    Combined (not per-zone) so two locked neighbours don't each fade out
+    along their shared edge and leave a coloured seam between them.
+    """
+    scale, crop_x, crop_y = _bg_transform(screen_w, screen_h)
+    mask = pygame.Surface((screen_w, screen_h), pygame.SRCALPHA)
+    for name in locked_zones:
+        poly = _ZONE_POLYS.get(name)
+        if poly:
+            pts = [(round(x * scale) - crop_x, round(y * scale) - crop_y) for x, y in poly]
+            pygame.draw.polygon(mask, (255, 255, 255, 255), pts)
+    small_w = max(1, screen_w // max(1, feather_px))
+    small_h = max(1, screen_h // max(1, feather_px))
     small   = pygame.transform.smoothscale(mask, (small_w, small_h))
-    return pygame.transform.smoothscale(small, (w, h))
+    return pygame.transform.smoothscale(small, (screen_w, screen_h))
 
 
 def _background_with_locked_zones(screen_w, screen_h, locked_zones):
@@ -146,36 +214,81 @@ def _background_with_locked_zones(screen_w, screen_h, locked_zones):
         return colour
 
     surf = colour.copy()
-    grey = pygame.transform.grayscale(colour)
     feather_px = max(1, round(screen_w * _FEATHER_FRAC))
+    mask = _locked_zones_mask(screen_w, screen_h, locked_zones, feather_px)
 
-    for name in locked_zones:
-        rect_f = _ZONE_RECTS.get(name)
-        if not rect_f:
-            continue
-        x0, y0, x1, y1 = rect_f
-        rect_px = pygame.Rect(round(x0 * screen_w), round(y0 * screen_h),
-                              round((x1 - x0) * screen_w), round((y1 - y0) * screen_h))
-        mask = _feathered_zone_mask(screen_w, screen_h, rect_px, feather_px)
-
-        grey_rgba = pygame.Surface((screen_w, screen_h), pygame.SRCALPHA)
-        grey_rgba.blit(grey, (0, 0))
-        grey_rgba.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
-        surf.blit(grey_rgba, (0, 0))
+    grey_rgba = pygame.Surface((screen_w, screen_h), pygame.SRCALPHA)
+    grey_rgba.blit(pygame.transform.grayscale(colour), (0, 0))
+    grey_rgba.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+    surf.blit(grey_rgba, (0, 0))
 
     _bg_locked_cache[key] = surf
     return surf
 
 
-def draw_background(surface, period, screen_w, screen_h, areas=None):
-    locked = [name for name in _ZONE_RECTS
+def draw_background(surface, blend, screen_w, screen_h, areas=None):
+    draw_sky(surface, blend, screen_w, screen_h)
+    locked = [name for name in _ZONE_POLYS
               if areas is not None and not areas.is_unlocked(name)]
     surface.blit(_background_with_locked_zones(screen_w, screen_h, locked), (0, 0))
 
 
-def draw_period_tint(surface, period, screen_w, screen_h):
-    tint = _PERIOD_TINT.get(period)
-    if not tint:
+# ------------------------------------------------------------------
+# Sky — vertical gradient drawn behind the background, showing through its
+# transparent (keyed-out) sky notch. One gradient per period, crossfaded at
+# period boundaries. The period tint is still applied over it afterwards.
+
+# period -> (top colour, horizon colour)
+_SKY_COLORS = {
+    "dawn":  ((120, 150, 205), (250, 190, 150)),
+    "day":   ((95, 150, 220),  (170, 205, 235)),
+    "dusk":  ((80, 70, 140),   (240, 140, 90)),
+    "night": ((10, 14, 40),    (30, 35, 75)),
+}
+_SKY_GRADIENT_FRAC = 0.16   # gradient spans this fraction of screen height; horizon colour below
+
+_sky_cache = {}
+
+
+def _get_sky(period, screen_w, screen_h):
+    key = (period, screen_w, screen_h)
+    surf = _sky_cache.get(key)
+    if surf is None:
+        top, horizon = _SKY_COLORS[period]
+        grad_h = max(1, round(screen_h * _SKY_GRADIENT_FRAC))
+        surf = pygame.Surface((screen_w, screen_h))
+        surf.fill(horizon)
+        for y in range(grad_h):
+            pygame.draw.line(surf, _lerp_color(top, horizon, y / grad_h),
+                             (0, y), (screen_w, y))
+        _sky_cache[key] = surf
+    return surf
+
+
+def draw_sky(surface, blend, screen_w, screen_h):
+    p_from, p_to, t = blend
+    surface.blit(_get_sky(p_from, screen_w, screen_h), (0, 0))
+    if t > 0:
+        incoming = _get_sky(p_to, screen_w, screen_h)
+        incoming.set_alpha(round(t * 255))
+        surface.blit(incoming, (0, 0))
+        incoming.set_alpha(None)
+
+
+def _blended_tint(blend):
+    """Interpolated (r, g, b, a) tint; a period with no tint fades as alpha 0."""
+    p_from, p_to, t = blend
+    a, b = _PERIOD_TINT.get(p_from), _PERIOD_TINT.get(p_to)
+    if a is None and b is None:
+        return None
+    a = a or (*b[:3], 0)
+    b = b or (*a[:3], 0)
+    return tuple(round(x + (y - x) * t) for x, y in zip(a, b))
+
+
+def draw_period_tint(surface, blend, screen_w, screen_h):
+    tint = _blended_tint(blend)
+    if not tint or tint[3] <= 0:
         return
     overlay = pygame.Surface((screen_w, screen_h), pygame.SRCALPHA)
     overlay.fill(tint)
@@ -183,15 +296,22 @@ def draw_period_tint(surface, period, screen_w, screen_h):
 
 
 # ------------------------------------------------------------------
-# Silvanus statue — baked into the background art; this draws only the
-# ambient glow and provides the click rect.
+# Silvanus statue — static sprite with a faint ambient glow behind its
+# upper body.
+
+_STATUE_GLOW_COLOR    = (140, 110, 200, 28)
+_STATUE_GLOW_R_FRAC   = 0.45   # glow radius as a fraction of the statue's width
+_STATUE_GLOW_Y_FRAC   = 0.30   # glow centre, down from the statue's top, as a fraction of its height
+
 
 def draw_statue(surface, period, screen_w, screen_h):
-    cx = screen_w // 2
-    base_y = round(screen_h * 0.684)
-    glow = pygame.Surface((90, 90), pygame.SRCALPHA)
-    pygame.draw.circle(glow, (140, 110, 200, 28), (45, 45), 42)
-    surface.blit(glow, (cx - 45, base_y - 235))
+    cx, cy, w, h = _sprite_geom("statue", screen_w, screen_h)
+    r = max(1, round(w * _STATUE_GLOW_R_FRAC))
+    glow = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+    pygame.draw.circle(glow, _STATUE_GLOW_COLOR, (r, r), r)
+    glow_cy = cy - h // 2 + round(h * _STATUE_GLOW_Y_FRAC)
+    surface.blit(glow, (cx - r, glow_cy - r))
+    _blit_sprite(surface, "statue", screen_w, screen_h)
 
 
 def statue_rect(screen_w, screen_h):
@@ -403,8 +523,10 @@ def _make_silhouette(raw, color):
     return sil
 
 
-def _get_halo(name, target_w, color=_HALO_COLOR, punch_center=False):
-    key = (name, target_w, color, punch_center)
+def _get_halo(name, target_w, color=_HALO_COLOR):
+    """Solid blurred glow, drawn before its sprite — the sprite's own redraw
+    (at its current animation offset) covers the centre, leaving a ring."""
+    key = (name, target_w, color)
     surf = _halo_cache.get(key)
     if surf is None:
         raw = _load_sprite_raw(name)
@@ -422,23 +544,6 @@ def _get_halo(name, target_w, color=_HALO_COLOR, punch_center=False):
         blurred = pygame.transform.smoothscale(
             pygame.transform.smoothscale(scaled, (small_w, small_h)), (halo_w, halo_h))
 
-        # Punch the sprite's own footprint out of the blurred ring, so only the
-        # glow outside it shows. Only needed for entities nothing redraws on
-        # top of the halo (the statue) — for animated sprites (druid,
-        # creatures), their own redraw each frame already covers the centre
-        # at wherever they *currently* are, including idle-animation offsets;
-        # punching a hole fixed to the base layout position instead exposed
-        # the ring's inner edge whenever the sprite bobbed/drifted away from
-        # that fixed spot (e.g. flumph).
-        if punch_center:
-            inner_w = max(1, target_w)
-            inner_h = max(1, round(raw.get_height() * (inner_w / raw.get_width())))
-            inner = pygame.transform.smoothscale(raw, (inner_w, inner_h))
-            ox, oy = (halo_w - inner_w) // 2, (halo_h - inner_h) // 2
-            punch = pygame.mask.from_surface(inner).to_surface(
-                setcolor=(255, 255, 255, 0), unsetcolor=(255, 255, 255, 255))
-            blurred.blit(punch, (ox, oy), special_flags=pygame.BLEND_RGBA_MULT)
-
         surf = blurred
         _halo_cache[key] = surf
     return surf
@@ -448,11 +553,9 @@ def halo_pulse(anim_time):
     return 0.5 + 0.5 * math.sin(anim_time * 2 * math.pi / _HALO_PULSE_PERIOD)
 
 
-def draw_halo(surface, name, screen_w, screen_h, pulse, punch_center=False):
-    cx_f, cy_f, w_f = _SPRITE_LAYOUT[name]
-    cx, cy   = round(cx_f * screen_w), round(cy_f * screen_h)
-    target_w = max(1, round(w_f * screen_w))
-    halo     = _get_halo(name, target_w, punch_center=punch_center).copy()
+def draw_halo(surface, name, screen_w, screen_h, pulse):
+    cx, cy, target_w, _ = _sprite_geom(name, screen_w, screen_h)
+    halo = _get_halo(name, target_w).copy()
     halo.set_alpha(int(110 + 90 * pulse))
     surface.blit(halo, (cx - halo.get_width() // 2, cy - halo.get_height() // 2))
 
@@ -1111,14 +1214,19 @@ def draw_motes(surface, period, time_of_day, screen_w, screen_h):
 
 def draw_scene(surface, period, time_of_day, screen_w, screen_h,
                creatures=None, events=None, areas=None,
-               statue_ready=False, druid_ready=False, anim_time=0.0):
-    draw_background(surface, period, screen_w, screen_h, areas)
+               statue_ready=False, druid_ready=False, anim_time=0.0,
+               blend=None):
+    # blend: (from_period, to_period, t) from TimeSystem.period_blend — drives
+    # the sky and tint crossfade. Omitted -> hold the current period.
+    if blend is None:
+        blend = (period, period, 0.0)
+    draw_background(surface, blend, screen_w, screen_h, areas)
 
     pulse = halo_pulse(anim_time)
 
     statue_glow = bool(events and events.grove_pending_event) or statue_ready
     if statue_glow:
-        draw_halo(surface, "statue", screen_w, screen_h, pulse, punch_center=True)
+        draw_halo(surface, "statue", screen_w, screen_h, pulse)
     draw_statue(surface, period, screen_w, screen_h)
 
     druid_glow = bool(events and events.visitor_pending_event) or druid_ready
@@ -1170,5 +1278,5 @@ def draw_scene(surface, period, time_of_day, screen_w, screen_h,
             draw_bond_bar(surface, rect.centerx, rect.bottom + gap,
                           c.bond_level, flashing=c.bond_flash_ttl > 0)
 
-    draw_period_tint(surface, period, screen_w, screen_h)
+    draw_period_tint(surface, blend, screen_w, screen_h)
     draw_motes(surface, period, time_of_day, screen_w, screen_h)

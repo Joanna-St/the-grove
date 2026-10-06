@@ -582,7 +582,8 @@ def main():
         draw_scene(game_surf, time_sys.period, time_sys.time_of_day,
                    game_w, game_h, creatures, events, areas,
                    statue_ready=statue_ready, druid_ready=druid_ready,
-                   anim_time=pygame.time.get_ticks() / 1000.0)
+                   anim_time=pygame.time.get_ticks() / 1000.0,
+                   blend=time_sys.period_blend)
 
         # Title
         title = font_lg.render("The Grove", True, (200, 230, 180))

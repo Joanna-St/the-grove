@@ -49,19 +49,84 @@ Things to consider for later phases. Not current phase scope.
   fills in with the full sprite once the creature actually arrives. Nice-to-have,
   not core to the Phase 5 art swap — revisit once base sprite integration is done.
 
-- **Locked-area desaturation isn't reading well in practice** — the Session 12
-  implementation uses rough rectangular `_ZONE_RECTS` (game/renderer.py) since
-  no real per-zone art masks exist; flagged then as "revisit if the rectangle
-  edges read as visually wrong" — user confirmed Session 15 that it does. Plan:
-  manually trace each locked area (thicket, canopy, feywild_boundary, oldwood)
-  against `background.png` and add them as separate mask assets, replacing the
-  rectangle approximation.
+- **Dawn/day/dusk/night transition isn't reading well** — flagged Session 15.
+  Addressed Session 19, pending a normal-speed check before closing: periods
+  switched hard (sky + tint popped in one frame) and night was only 75s of a
+  600s day. Now the sky gradient and tint crossfade over
+  `period_crossfade_fraction` (0.04 ≈ 24s) via `TimeSystem.period_blend`, and
+  segments are dawn 60s / day ~264s / dusk 60s / night ~216s. Close once the
+  user has watched a few transitions at normal speed.
 
-- **Dawn/day/dusk/night transition isn't reading well** — flagged Session 15,
-  no root cause diagnosed yet. `draw_period_tint()` (game/renderer.py) is the
-  overlay driving this since the sky got baked into the background art
-  (Session 12) — needs investigation into whether it's a timing issue, a
-  colour/opacity issue, or something else before deciding a fix.
+---
+
+## Post-art-integration tuning (flagged Session 19)
+
+Raised once the Session 18 art was wired in at spec positions/sizes.
+**Agreed order (Session 19):** (1) remove displacer beast ghost, (2) tighten
+halo, (3) ambient glow for wisp/pixie/flumph, (4) ground shadows, (5) idle
+animation pass, (6) UI/interaction pass (bond bar + shape-accurate clicks).
+Statue glow tuning slots into (3) or (4). Owlbear overlapping the message
+box was checked live and is fine — not an issue.
+
+- **Remove the displacer beast's ghost-offset double image** — the
+  translucent second blit in `draw_displacer_beast` (game/renderer.py);
+  user wants it gone. Keep its breathing.
+
+- **Ambient glow behind moss wisp, pixie, flumph** — render-time blurred
+  coloured ellipse behind the sprite, following its animation offset; built
+  once and cached like the halos. Spec values (docs/phase5_art_spec.csv):
+  wisp green-white r≈1.1× height, pixie violet-blue r≈0.8×, flumph soft pink
+  r≈0.9×.
+
+- **Shadows under grounded sprites** — needs a short design pass first:
+  which sprites (druid, stirge, blink dog, owlbear, displacer beast; blink
+  dog is mid-leap so its shadow sits below it, not touching), and whether
+  the statue gets one at all (a root contact shadow was tried and rejected
+  in Session 18 — see "Statue root/ground blend treatment" below). Shadows
+  should stay put while sprites bob, so do this before the idle pass.
+
+- **Statue ambient glow barely visible** — re-anchored in Session 19 to the
+  new statue (`_STATUE_GLOW_*` in game/renderer.py) but the much larger
+  sprite now hides most of it. Tune or drop.
+
+- **Idle motion pass, everyone — moss wisp especially** — the wisp's drift
+  (`draw_moss_wisp`, game/renderer.py: ±3px on x/y, periods 4.6s/6.13s)
+  reads as very erratic on the new sprite. Revisit all idle animations
+  (breathing, blink dog flicker, flumph bob, pixie flutter) now that sprites
+  are larger and differently shaped — the Session 14 amplitudes/periods were
+  tuned against the old, smaller art.
+
+- **Tighten the notification halo** — the halo spreads too far around every
+  sprite. Tunables are `_HALO_SCALE` (1.18) and `_HALO_BLUR_DIV` (3) in
+  game/renderer.py; the blur was raised in Session 13 to soften flat edges
+  where old sprites touched their crop box, which may matter less with the
+  new art.
+
+- **Bond bar placement** — bars currently sit under each sprite, which
+  breaks for the owlbear (its bottom edge runs off-screen by design, so its
+  bar is invisible) and depends on per-creature gap overrides
+  (`_BOND_BAR_GAP_OVERRIDE`). Options: (A) move bars above each sprite,
+  (B) a status bar off to the side listing every present creature,
+  (C) show bond inside the message box when a creature is selected.
+
+- **Shape-accurate click areas** — `sprite_rect()` hit-tests a plain
+  rectangle, which is far bigger than the art for the owlbear (covers most
+  of the bottom-left brambles) and displacer beast (empty space around the
+  tentacles). Hit-test against the sprite's alpha mask instead (same
+  `pygame.mask` approach the halo already uses). Part of the UI pass with
+  the bond bar move.
+
+- **Area unlock transition** — unlocking an area currently swaps its
+  greyscale for colour instantly. Consider animating colour back in (fade,
+  or spreading out from the area's creatures). Pairs naturally with the
+  "creature reveal: outline-to-sprite fill" idea under Bugs / Polish.
+
+- **Mist over locked areas** — locked zones are currently plain greyscale
+  (kept as-is in Session 19 when the zones were retraced). Consider adding a
+  faint mist/fog layer over them so they read as dormant or veiled rather
+  than just desaturated. Would reuse the same combined locked-zone mask
+  (`_locked_zones_mask`, game/renderer.py); pairs with the unlock transition
+  above (mist clearing as an area unlocks).
 
 ---
 

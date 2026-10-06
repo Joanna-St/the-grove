@@ -9,6 +9,7 @@ class TimeSystem:
         self._day_len  = config["time"]["day_length_real_seconds"]
         self._dev_mult = config["time"]["dev_speed_multiplier"]
         self._segments = config["time"]["time_of_day_segments"]
+        self._xfade    = config["time"].get("period_crossfade_fraction", 0.0)
 
         self.dev_speed    = False
         self._game_seconds = 0.0
@@ -55,6 +56,25 @@ class TimeSystem:
             if lo <= t < hi:
                 return name
         return "night"
+
+    @property
+    def period_blend(self):
+        """
+        (from_period, to_period, t) for visuals that crossfade between periods.
+        Within half a crossfade window of a period boundary, t runs 0 -> 1 from
+        the outgoing to the incoming period; elsewhere it's (period, period, 0).
+        Game logic should keep using `period`, which still switches hard.
+        """
+        t, half = self.time_of_day, self._xfade / 2
+        if half > 0:
+            for name, (lo, _) in self._segments.items():
+                prev = next(n for n, (_, hi) in self._segments.items()
+                            if hi % 1.0 == lo)
+                d = (t - lo + 0.5) % 1.0 - 0.5   # signed circular distance to boundary
+                if -half <= d < half:
+                    return prev, name, (d + half) / self._xfade
+        p = self.period
+        return p, p, 0.0
 
     def toggle_dev_speed(self):
         self.dev_speed = not self.dev_speed
