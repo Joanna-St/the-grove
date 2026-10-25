@@ -60,21 +60,18 @@ Full phase descriptions in design doc.
 ## Current Phase
 **Phase 5 — Art & Polish**
 
-HUD layout pass (Session 13), idle animation/halo follow-ups (Session 14),
-dialogue box overflow + rune-disc controls (Session 15), statue/druid
-event-action menus + Shield→Ward rename (Session 16), the statue
-click-rect fix + player name/help-menu UI (Session 17), and a full art
-redo of the entire game — background, statue, and all 8 creatures,
-regenerated via GPT image tools and finalised in `assets/` (Session 18)
-— are done, and the new art is wired into the game with a code-drawn
-sky, smooth day/night crossfades, and traced locked-zone masks (Session
-19). Next step: the post-art polish block agreed in Session 19, in order
-(see IDEAS.md "Post-art-integration tuning"): remove displacer beast
-ghost → tighten halo → ambient glow for wisp/pixie/flumph → ground
-shadows → idle animation pass → UI pass (bond bar relocation +
-shape-accurate click areas). Then the remaining IDEAS.md backlog
-(resource storage caps, fullscreen toggle, custom icon, text
-cross-reference pass, blink dog forage pool bug, dismiss-glyph zoom
+Sessions 13–19 covered the HUD layout pass, idle animation and halo
+follow-ups, dialogue box and rune-disc controls, statue/druid menus, the
+help menu, and a full GPT art redo wired in with a code-drawn sky and
+traced locked-zone masks. Session 20 finished the whole post-art polish
+block agreed in Session 19 (ghost removal, outline halo, light sources,
+ground shadows, idle animation, bond sprig + Grove Journal, shape-accurate
+click areas). Next step: the **PRIORITY** bug at the top of IDEAS.md "Bugs /
+Polish" (event bond XP never triggers a level-up — takes priority over
+cosmetic work), then the two halo items flagged in Session 20 (halos on
+almost constantly; outline too thick on most sprites), then the remaining
+IDEAS.md backlog (resource storage caps, fullscreen toggle, custom icon,
+text cross-reference pass, blink dog forage pool bug, dismiss-glyph zoom
 tuning, event frequency tuning).
 
 ## Phase 6 — Post-Launch Additions (not yet scoped)
@@ -1088,3 +1085,108 @@ user sign-off).
   flumph (+ statue glow), (4) ground shadows (design discussion first),
   (5) idle animation pass, (6) UI pass: bond bar relocation +
   shape-accurate click areas.
+
+### Session 20 — [25.10.2026]
+**Phase 5 — Post-art polish block complete (all 6 steps agreed in Session 19).**
+
+Worked through the Session 19 order one step at a time (discuss → preview →
+implement → render-test → sign-off). Previews in gitignored `previews/`.
+
+**(1) Displacer beast ghost removed** — the translucent second blit is gone;
+breathing kept.
+
+**(2) Halo rebuilt as a fixed-pixel outline.** The old halo scaled the
+silhouette ×1.18 about its centre, so its thickness depended on sprite size
+(~25px on owlbear/displacer, almost nothing on pixie/stirge) and thin parts
+(tentacles, antlers) got a glow that drifted off the art. Now
+`_get_halo()` stamps the on-screen-size silhouette around a circle of
+`_HALO_RADIUS` = 5px, then softens it lightly — same rim on every sprite.
+Build cost ~0.01s for all halos.
+
+**(3) Light sources** (wisp, pixie, flumph + statue). Spec'd as a soft
+coloured circle *painted* behind each sprite, but prototyping showed that
+barely reads on the bright Feywild veil and gets dimmed at night. Chosen
+instead: light *added* (`BLEND_RGB_ADD`) and drawn after the period tint, so
+these creatures keep full brightness at night — user preferred this partly
+because it can't be confused with the notification halo. `_LIGHTS` table
+(colour, radius, strength, height) in renderer.py. Statue only *emits*
+light — its body still dims, because the blink dog stands in front of its
+roots and must stay on top. Statue light strength raised 70→130 (invisible
+at 70), radius trimmed 0.35→0.28 at the user's request. Old purple statue
+glow removed. `draw_scene` draws self-lit creatures after the tint.
+
+**(4) Ground shadows** — the hardest step, three rounds. Generic ellipses
+under each bbox read as floating (shadow extends past the contact point);
+outline-based "contact" shadows were tried next. Took a step back to
+discuss what shadows are: the painted background has *no* cast shadows
+(grounds objects by own-shading + grass overlap), so any shadow is a new
+rule only sprites follow. Final, per user direction (`_SHADOWS` in
+renderer.py): ellipses for displacer beast, stirge, blink dog (tilted 16°
+along its diagonal paw line, dropped slightly so it shows under the paws)
+and statue (covers the whole root fan, alpha 190); a contact shadow built
+from the robe's own bottom strip for the druid, nudged forward-left.
+Ellipses gained `core` (solid fraction before feathering) and `angle`.
+Shadows fade with time of day (`_SHADOW_STRENGTH`: day 1.0, dawn/dusk 0.75,
+night 0.35, crossfaded like the sky) — night's only light is the faint glow
+sources. Owlbear (runs off-screen), pseudodragon (too small) and floaters
+get none.
+- **Bug shipped and fixed same session:** shadow loop used
+  `creatures[name]`, but the real `Creatures` object only has `.get()` —
+  preview scripts had passed a plain dict, so the crash only showed on the
+  user's real launch. Fixed; all later tests used the real game objects
+  (and drove `main.py` itself with scripted input, restoring `save.json`).
+
+**(5) Idle animation pass.** Breathing used to bob the whole sprite, which
+now lifted feet off their fixed shadows — replaced with `_blit_breathing()`,
+a slight vertical stretch anchored at the feet (`_BREATH_STRETCH` 1.2% of
+height; frames resampled from the raw art, cached per whole-pixel step).
+Moss wisp: x/y on unrelated periods made it jerk diagonally — now a 5s
+float with a sway on exactly double the period (smooth figure-eight). Blink
+dog: constant side-jitter replaced by holding still and blinking (fade
+out/in over 0.25s, its shadow fades too) every 6–12s at random. Flumph and
+pixie unchanged. Verified feet stay on the same pixel row through a breath;
+no frame after the first over 16ms.
+
+**(6a) Bond bars → bond sprig + Grove Journal.** Bars removed from the
+scene entirely. Bond now shows as a hand-drawn pixel-art sprig (3 leaf/bud
+slots on a stem, 2×2 screen px per art pixel) pinned top-right in the
+message box whenever a creature is the speaker (`draw_bond_sprig`,
+`_TB_SPRIG_TOP` keeps it clear of the first option row's hover highlight).
+User tried a GPT-made sprig too (grid recovered from its ~26.8px blocks,
+palette snapped to 8 colours) but preferred the code version. Level-up:
+interact/feed already put the milestone text in the message box, so the
+new leaf grows in there (bud → small leaf → leaf by 0.3s, bright flash
+fading by ~0.8s) via `text_box["grow_at"]`. New two-tab **Grove Journal**
+(`draw_journal_panel`): Creatures tab (name · home area + sprig; "???" for
+not-yet-arrived, with the area named only once it's restored) and Grove tab
+(the old restoration panel's rows, unchanged, via `_draw_area_rows`; the
+standalone `draw_areas_panel` is gone). `J` → Creatures, `R` → Grove; same
+key closes, the other switches tabs. `Creatures.all()` and `Creature.area`
+added. Help Controls tab lists J/R. Journal and help menu now also close on
+a click outside the panel, like the other boxes.
+
+**(6b) Shape-accurate click areas.** `sprite_hit()` tests clicks against the
+halo's shape (sprite + ~4px slack, `_HIT_ALPHA`), so what glows is what's
+clickable. Owlbear −24%, displacer −30%, statue −26% clickable area vs the
+old rects; small sprites slightly easier to hit. Only overlap is blink dog
+over the statue roots — the dog wins, matching draw order. `main.py` no
+longer imports the `*_rect`/`*_pos` helpers.
+
+**Other.**
+- Druid menu now always says "The Grove" (reverses the Session 16 choice of
+  showing the visitor's name when a visitor event is pending — read as a
+  bug; the visitor's name still labels their own boxes once Event is picked).
+- `assets/_temp/` (GPT sprig source) deleted; `save_full.json` left untracked
+  per user.
+- `Creature.bond_flash_ttl` and `feed_indicator` are now unused.
+
+**Logged in IDEAS.md:** PRIORITY bug — event bond XP is added straight to
+`bond_xp` in `_apply_creature_event` without the level-up check, so a
+threshold crossed by an event only fires on the next interact/feed (takes
+priority over cosmetic work). Halos on almost constantly at normal speed
+(not a timing regression — a creature glows whenever its 20s interact
+cooldown has elapsed; the crisp outline makes it far more visible). Halo
+outline too thick on everything but the owlbear.
+
+- **Next:** the PRIORITY event-bond-XP bug, then the two halo items, then
+  the remaining IDEAS.md backlog.

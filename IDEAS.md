@@ -25,6 +25,16 @@ Things to consider for later phases. Not current phase scope.
 
 ## Bugs / Polish
 
+- **PRIORITY — event bond XP never triggers a level-up** (found Session 20;
+  takes priority over cosmetic fixes and improvements). `_apply_creature_event`
+  (main.py) adds event bond XP straight to `creature.bond_xp` without the
+  level-up check in `Creature._resolve_bond()` (game/creatures.py). If an event
+  pushes a creature past a threshold, nothing happens until the next
+  interact/feed — then that milestone fires seemingly out of nowhere, in place
+  of the normal dialogue line. Fix: run event XP through the same level-up
+  check and show the milestone (and the bond sprig's leaf grow-in) after the
+  event's own text.
+
 - **Forage message references blink dog before it arrives** — `dlg.FORAGE`
   (game/dialogue.py) includes a line about the blink dog following you on a
   foraging trip. `dlg.pick(dlg.FORAGE)` doesn't check creature presence, so
@@ -68,53 +78,23 @@ animation pass, (6) UI/interaction pass (bond bar + shape-accurate clicks).
 Statue glow tuning slots into (3) or (4). Owlbear overlapping the message
 box was checked live and is fine — not an issue.
 
-- **Remove the displacer beast's ghost-offset double image** — the
-  translucent second blit in `draw_displacer_beast` (game/renderer.py);
-  user wants it gone. Keep its breathing.
+- **Halos are on almost constantly** — flagged Session 20 after under a
+  minute of normal-speed play: there was never a moment with no halo
+  showing, which felt overwhelming. Not a timing regression (Session 20 only
+  touched renderer.py/IDEAS.md). Cause: a creature's halo shows whenever
+  `can_interact` is true, i.e. any time the 20s real-time
+  `interact_cooldown_real_seconds` has elapsed — so every creature you
+  haven't clicked recently glows, plus statue/druid whenever tend/forage is
+  ready. The new crisp 5px outline (Session 20) makes it far more visible
+  than the old faint wash did. Options: halo only for *events* (not plain
+  interact-ready), a longer interact cooldown, or a subtler "available"
+  state vs a stronger "event waiting" state. Pairs with the event frequency
+  item under Tuning & Balance.
 
-- **Ambient glow behind moss wisp, pixie, flumph** — render-time blurred
-  coloured ellipse behind the sprite, following its animation offset; built
-  once and cached like the halos. Spec values (docs/phase5_art_spec.csv):
-  wisp green-white r≈1.1× height, pixie violet-blue r≈0.8×, flumph soft pink
-  r≈0.9×.
-
-- **Shadows under grounded sprites** — needs a short design pass first:
-  which sprites (druid, stirge, blink dog, owlbear, displacer beast; blink
-  dog is mid-leap so its shadow sits below it, not touching), and whether
-  the statue gets one at all (a root contact shadow was tried and rejected
-  in Session 18 — see "Statue root/ground blend treatment" below). Shadows
-  should stay put while sprites bob, so do this before the idle pass.
-
-- **Statue ambient glow barely visible** — re-anchored in Session 19 to the
-  new statue (`_STATUE_GLOW_*` in game/renderer.py) but the much larger
-  sprite now hides most of it. Tune or drop.
-
-- **Idle motion pass, everyone — moss wisp especially** — the wisp's drift
-  (`draw_moss_wisp`, game/renderer.py: ±3px on x/y, periods 4.6s/6.13s)
-  reads as very erratic on the new sprite. Revisit all idle animations
-  (breathing, blink dog flicker, flumph bob, pixie flutter) now that sprites
-  are larger and differently shaped — the Session 14 amplitudes/periods were
-  tuned against the old, smaller art.
-
-- **Tighten the notification halo** — the halo spreads too far around every
-  sprite. Tunables are `_HALO_SCALE` (1.18) and `_HALO_BLUR_DIV` (3) in
-  game/renderer.py; the blur was raised in Session 13 to soften flat edges
-  where old sprites touched their crop box, which may matter less with the
-  new art.
-
-- **Bond bar placement** — bars currently sit under each sprite, which
-  breaks for the owlbear (its bottom edge runs off-screen by design, so its
-  bar is invisible) and depends on per-creature gap overrides
-  (`_BOND_BAR_GAP_OVERRIDE`). Options: (A) move bars above each sprite,
-  (B) a status bar off to the side listing every present creature,
-  (C) show bond inside the message box when a creature is selected.
-
-- **Shape-accurate click areas** — `sprite_rect()` hit-tests a plain
-  rectangle, which is far bigger than the art for the owlbear (covers most
-  of the bottom-left brambles) and displacer beast (empty space around the
-  tentacles). Hit-test against the sprite's alpha mask instead (same
-  `pygame.mask` approach the halo already uses). Part of the UI pass with
-  the bond bar move.
+- **Halo too thick on most sprites** — the 5px outline (Session 20) is fine
+  on the owlbear but reads way too thick on everyone else. Options: lower
+  `_HALO_RADIUS` globally (3px was the crisp-but-faint prototype), or a
+  per-sprite radius so the owlbear keeps 5px.
 
 - **Area unlock transition** — unlocking an area currently swaps its
   greyscale for colour instantly. Consider animating colour back in (fade,

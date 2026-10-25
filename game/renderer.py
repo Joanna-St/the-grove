@@ -5,6 +5,7 @@ Sprite-based visuals — background and creature art loaded from assets/.
 import os
 import pygame
 import math
+import random
 
 
 _ASSET_DIR   = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
@@ -296,21 +297,141 @@ def draw_period_tint(surface, blend, screen_w, screen_h):
 
 
 # ------------------------------------------------------------------
-# Silvanus statue — static sprite with a faint ambient glow behind its
-# upper body.
+# Light sources — soft radial light added (not painted) over the scene, so it
+# still reads against the bright Feywild veil, and drawn after the period tint
+# so night doesn't dim it. Distinct from the notification halo on purpose.
+# name -> (colour, radius as a fraction of sprite height, peak strength 0-255,
+#          light centre down from the sprite's top as a fraction of its height)
+_LIGHTS = {
+    "moss_wisp": ((210, 255, 200), 1.1, 120, 0.5),
+    "pixie":     ((170, 150, 255), 0.8, 120, 0.5),
+    "flumph":    ((255, 170, 205), 0.9, 120, 0.5),
+    "statue":    ((175, 160, 235), 0.28, 130, 0.30),   # chest/antlers
+}
 
-_STATUE_GLOW_COLOR    = (140, 110, 200, 28)
-_STATUE_GLOW_R_FRAC   = 0.45   # glow radius as a fraction of the statue's width
-_STATUE_GLOW_Y_FRAC   = 0.30   # glow centre, down from the statue's top, as a fraction of its height
+# Creatures that are their own light: sprite drawn after the tint too, not
+# just their light. The statue only gives off light — its body still dims,
+# since the blink dog stands in front of its roots and must stay on top.
+_SELF_LIT = ("flumph", "moss_wisp", "pixie")
 
+_light_cache = {}
+
+
+def _get_light(name, radius):
+    key = (name, radius)
+    surf = _light_cache.get(key)
+    if surf is None:
+        color, _, peak, _ = _LIGHTS[name]
+        glow = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+        steps = 40
+        for i in range(steps):   # outer -> inner; draw writes alpha directly
+            f = 1 - i / steps
+            pygame.draw.circle(glow, (*color, round(peak * (1 - f) ** 2)),
+                               (radius, radius), max(1, round(radius * f)))
+        # Flatten onto black so BLEND_RGB_ADD adds colour x alpha — light, not paint
+        surf = pygame.Surface(glow.get_size())
+        surf.blit(glow, (0, 0))
+        _light_cache[key] = surf
+    return surf
+
+
+def draw_light(surface, name, screen_w, screen_h, offset=(0, 0)):
+    cx, cy, _, h = _sprite_geom(name, screen_w, screen_h)
+    _, r_frac, _, y_frac = _LIGHTS[name]
+    light = _get_light(name, max(1, round(h * r_frac)))
+    lx = cx + offset[0]
+    ly = cy - h // 2 + round(h * y_frac) + offset[1]
+    surface.blit(light, (lx - light.get_width() // 2, ly - light.get_height() // 2),
+                 special_flags=pygame.BLEND_RGB_ADD)
+
+
+# ------------------------------------------------------------------
+# Ground shadows — drawn on the background before any sprite, at the sprite's
+# base layout position, so they stay put while sprites bob.
+# "ellipse": (dx, dy from the sprite's bottom-centre, width, height, alpha,
+#            core, angle) — dx/width as fractions of sprite width, dy/height of
+#            sprite height; core = fraction of the radius that's fully dark
+#            before the edge feathers out; angle in degrees (clockwise)
+# "contact": (band, squash, spread, dx, dy, alpha) — footprint built from the
+#            sprite's own bottom `band` of height, flattened by `squash`,
+#            widened by `spread` (fraction of width) each side, shifted by
+#            dx (fraction of width) and dy (fraction of height, + is forward)
+_SHADOWS = {
+    "displacer_beast": ("ellipse", (0.09, -0.02, 0.89, 0.115, 150, 0.55, 0)),
+    "stirge":          ("ellipse", (-0.03, 0.015, 0.94, 0.17, 130, 0.55, 0)),
+    "blink_dog":       ("ellipse", (0.13, -0.07, 1.18, 0.20, 140, 0.70, 16)),   # along the paw line, hind to front
+    "statue":          ("ellipse", (0.0, -0.10, 0.93, 0.25, 190, 0.80, 0)),     # whole root fan
+    "druid":           ("contact", (0.08, 0.60, 0.08, -0.06, 0.03, 150)),
+}
+
+# Shadow strength per period, crossfaded like the sky — the night's only
+# light is the faint glow of the wisp/pixie/flumph/statue, so shadows fade.
+_SHADOW_STRENGTH = {"dawn": 0.75, "day": 1.0, "dusk": 0.75, "night": 0.35}
+
+_shadow_cache = {}
+
+
+def _ellipse_shadow(w, h, alpha, core, angle):
+    surf = pygame.Surface((w, h), pygame.SRCALPHA)
+    steps = 24
+    for i in range(steps):   # outer -> inner; solid core, feathered edge
+        f = 1 - i / steps
+        rw, rh = max(1, round(w * f)), max(1, round(h * f))
+        pygame.draw.ellipse(surf, (0, 0, 0, round(alpha * min(1.0, (1 - f) / (1 - core)))),
+                            ((w - rw) // 2, (h - rh) // 2, rw, rh))
+    return pygame.transform.rotate(surf, -angle) if angle else surf
+
+
+def _contact_shadow(name, w, h, params):
+    band_f, squash, spread_f = params[:3]
+    bh = max(1, round(h * band_f))
+    band = _make_silhouette(_get_sprite_scaled(name, h).subsurface((0, h - bh, w, bh)), (0, 0, 0))
+    fw, fh = w + 2 * round(w * spread_f), max(2, round(bh * squash))
+    pad = 6
+    surf = pygame.Surface((fw + 2 * pad, fh + 2 * pad), pygame.SRCALPHA)
+    surf.blit(pygame.transform.smoothscale(band, (fw, fh)), (pad, pad))
+    sw, sh = surf.get_size()
+    surf = pygame.transform.smoothscale(
+        pygame.transform.smoothscale(surf, (max(1, sw // 3), max(1, sh // 3))), (sw, sh))
+    return surf, pad
+
+
+def shadow_strength(blend):
+    frm, to, t = blend
+    return _SHADOW_STRENGTH[frm] + (_SHADOW_STRENGTH[to] - _SHADOW_STRENGTH[frm]) * t
+
+
+def draw_shadow(surface, name, screen_w, screen_h, strength=1.0):
+    cx, cy, w, h = _sprite_geom(name, screen_w, screen_h)
+    kind, params = _SHADOWS[name]
+    key = (name, w, h)
+    cached = _shadow_cache.get(key)
+    bottom = cy + h // 2
+    if kind == "ellipse":
+        dx_f, dy_f, w_f, h_f, alpha, core, angle = params
+        if cached is None:
+            cached = _shadow_cache[key] = _ellipse_shadow(
+                max(2, round(w * w_f)), max(2, round(h * h_f)), alpha, core, angle)
+        sx = cx + round(w * dx_f)
+        sy = bottom + round(h * dy_f)
+        cached.set_alpha(round(255 * strength))
+        surface.blit(cached, (sx - cached.get_width() // 2, sy - cached.get_height() // 2))
+    else:
+        if cached is None:
+            cached = _shadow_cache[key] = _contact_shadow(name, w, h, params)
+        surf, pad = cached
+        _, _, _, dx_f, dy_f, alpha = params
+        fh = surf.get_height() - 2 * pad
+        sx = cx + round(w * dx_f)
+        sy = bottom + round(h * dy_f) - fh - pad
+        surf.set_alpha(round(alpha * strength))
+        surface.blit(surf, (sx - surf.get_width() // 2, sy))
+
+
+# ------------------------------------------------------------------
+# Silvanus statue — static sprite; its light is drawn after the tint (draw_scene).
 
 def draw_statue(surface, period, screen_w, screen_h):
-    cx, cy, w, h = _sprite_geom("statue", screen_w, screen_h)
-    r = max(1, round(w * _STATUE_GLOW_R_FRAC))
-    glow = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
-    pygame.draw.circle(glow, _STATUE_GLOW_COLOR, (r, r), r)
-    glow_cy = cy - h // 2 + round(h * _STATUE_GLOW_Y_FRAC)
-    surface.blit(glow, (cx - r, glow_cy - r))
     _blit_sprite(surface, "statue", screen_w, screen_h)
 
 
@@ -340,9 +461,33 @@ def _breathe(anim_time, period, amplitude):
     return round(math.sin(anim_time * 2 * math.pi / period) * amplitude)
 
 
+# Breathing for grounded sprites: a slight vertical stretch anchored at the
+# feet, rather than bobbing the whole sprite (which lifted feet off their
+# fixed ground shadows). Each frame is resampled from the raw art so every
+# stretch step is equally crisp; cached per whole-pixel stretch.
+_BREATH_STRETCH = 0.012   # extra height at the top of a breath, fraction of sprite height
+
+_breath_cache = {}
+
+
+def _blit_breathing(surface, name, screen_w, screen_h, anim_time, period):
+    cx, cy, w, h = _sprite_geom(name, screen_w, screen_h)
+    phase = 0.5 + 0.5 * math.sin(anim_time * 2 * math.pi / period)
+    extra = round(phase * h * _BREATH_STRETCH)
+    if extra == 0:
+        img = _get_sprite_scaled(name, h)
+    else:
+        key = (name, h, extra)
+        img = _breath_cache.get(key)
+        if img is None:
+            img = _breath_cache[key] = pygame.transform.smoothscale(
+                _load_sprite_raw(name), (w, h + extra))
+    bottom = cy + h // 2
+    surface.blit(img, (cx - w // 2, bottom - img.get_height()))
+
+
 def draw_druid(surface, period, screen_w, screen_h, anim_time=0.0):
-    breath = _breathe(anim_time, 7.0, 1)
-    _blit_sprite(surface, "druid", screen_w, screen_h, offset=(0, breath))
+    _blit_breathing(surface, "druid", screen_w, screen_h, anim_time, 7.0)
 
 
 # ------------------------------------------------------------------
@@ -359,12 +504,11 @@ def stirge_rect(screen_w, screen_h):
 def draw_stirge(surface, screen_w, screen_h, period, is_present, anim_time=0.0):
     if not is_present:
         return
-    breath = _breathe(anim_time, 5.0, 1)
-    _blit_sprite(surface, "stirge", screen_w, screen_h, offset=(0, breath))
+    _blit_breathing(surface, "stirge", screen_w, screen_h, anim_time, 5.0)
 
 
 # ------------------------------------------------------------------
-# Blink Dog — subtle shimmer-flicker jitter
+# Blink Dog — holds still, then every so often blinks out and back in
 
 def blink_dog_pos(screen_w, screen_h):
     return sprite_pos("blink_dog", screen_w, screen_h)
@@ -374,11 +518,28 @@ def blink_dog_rect(screen_w, screen_h):
     return sprite_rect("blink_dog", screen_w, screen_h)
 
 
+_BLINK_INTERVAL = (6.0, 12.0)   # real seconds between blinks, picked at random
+_BLINK_DURATION = 0.25          # fade out and back in
+
+_blink_next = None
+
+
+def blink_dog_alpha(anim_time):
+    """0-255 opacity of the blink dog right now — also fades its shadow."""
+    global _blink_next
+    if _blink_next is None or anim_time > _blink_next + _BLINK_DURATION:
+        _blink_next = anim_time + random.uniform(*_BLINK_INTERVAL)
+    dt = anim_time - _blink_next
+    if 0 <= dt < _BLINK_DURATION:
+        return round(255 * abs(1 - 2 * dt / _BLINK_DURATION))
+    return 255
+
+
 def draw_blink_dog(surface, screen_w, screen_h, period, is_present, anim_time):
     if not is_present:
         return
-    flicker = _breathe(anim_time, 1.0, 1.5)
-    _blit_sprite(surface, "blink_dog", screen_w, screen_h, offset=(flicker, 0))
+    _blit_sprite(surface, "blink_dog", screen_w, screen_h,
+                 alpha=blink_dog_alpha(anim_time))
 
 
 # ------------------------------------------------------------------
@@ -395,8 +556,7 @@ def owlbear_rect(screen_w, screen_h):
 def draw_owlbear(surface, screen_w, screen_h, period, is_present, anim_time=0.0):
     if not is_present:
         return
-    breath = _breathe(anim_time, 6.0, 1)
-    _blit_sprite(surface, "owlbear", screen_w, screen_h, offset=(0, breath))
+    _blit_breathing(surface, "owlbear", screen_w, screen_h, anim_time, 6.0)
 
 
 # ------------------------------------------------------------------
@@ -413,8 +573,7 @@ def pseudodragon_rect(screen_w, screen_h):
 def draw_pseudodragon(surface, screen_w, screen_h, period, is_present, anim_time=0.0):
     if not is_present:
         return
-    breath = _breathe(anim_time, 5.5, 1)
-    _blit_sprite(surface, "pseudodragon", screen_w, screen_h, offset=(0, breath))
+    _blit_breathing(surface, "pseudodragon", screen_w, screen_h, anim_time, 5.5)
 
 
 # ------------------------------------------------------------------
@@ -432,11 +591,13 @@ def draw_flumph(surface, screen_w, screen_h, period, is_present, anim_time):
     if not is_present:
         return
     bob = _breathe(anim_time, 3.83, 4)
+    draw_light(surface, "flumph", screen_w, screen_h, offset=(0, bob))
     _blit_sprite(surface, "flumph", screen_w, screen_h, offset=(0, bob))
 
 
 # ------------------------------------------------------------------
-# Moss Wisp — slow drift
+# Moss Wisp — slow figure-eight float (sway on exactly twice the float period,
+# so the two axes stay in step instead of jerking diagonally)
 
 def moss_wisp_pos(screen_w, screen_h):
     return sprite_pos("moss_wisp", screen_w, screen_h)
@@ -449,8 +610,9 @@ def moss_wisp_rect(screen_w, screen_h):
 def draw_moss_wisp(surface, screen_w, screen_h, period, is_present, anim_time):
     if not is_present:
         return
-    drift_x = round(math.sin(anim_time * 2 * math.pi / 4.6) * 3)
-    drift_y = round(math.cos(anim_time * 2 * math.pi / 6.13) * 3)
+    drift_y = _breathe(anim_time, 5.0, 3)
+    drift_x = _breathe(anim_time, 10.0, 2)
+    draw_light(surface, "moss_wisp", screen_w, screen_h, offset=(drift_x, drift_y))
     _blit_sprite(surface, "moss_wisp", screen_w, screen_h, offset=(drift_x, drift_y))
 
 
@@ -469,11 +631,12 @@ def draw_pixie(surface, screen_w, screen_h, period, is_present, anim_time):
     if not is_present:
         return
     flutter = _breathe(anim_time, 1.3, 3)
+    draw_light(surface, "pixie", screen_w, screen_h, offset=(0, flutter))
     _blit_sprite(surface, "pixie", screen_w, screen_h, offset=(0, flutter))
 
 
 # ------------------------------------------------------------------
-# Displacer Beast — faint ghost-offset double image (displacement illusion)
+# Displacer Beast
 
 def displacer_beast_pos(screen_w, screen_h):
     return sprite_pos("displacer_beast", screen_w, screen_h)
@@ -486,11 +649,7 @@ def displacer_beast_rect(screen_w, screen_h):
 def draw_displacer_beast(surface, screen_w, screen_h, period, is_present, anim_time):
     if not is_present:
         return
-    ghost_x = _breathe(anim_time, 2.5, 6) + 10
-    breath  = _breathe(anim_time, 6.5, 1)
-    _blit_sprite(surface, "displacer_beast", screen_w, screen_h,
-                 offset=(ghost_x, breath), alpha=50)
-    _blit_sprite(surface, "displacer_beast", screen_w, screen_h, offset=(0, breath))
+    _blit_breathing(surface, "displacer_beast", screen_w, screen_h, anim_time, 6.5)
 
 
 # ------------------------------------------------------------------
@@ -500,12 +659,11 @@ def draw_displacer_beast(surface, screen_w, screen_h, period, is_present, anim_t
 # Replaces the old placeholder "!" marker everywhere.
 
 _HALO_COLOR      = (255, 225, 140)
-_HALO_SCALE      = 1.18
-_HALO_BLUR_DIV   = 3   # higher blur softens flat edges (sprite touching its crop bbox) into curves
+_HALO_RADIUS     = 5   # outline thickness in screen px — same for every sprite regardless of size
+_HALO_BLUR_DIV   = 2   # light softening of the grown outline (downscale/upscale factor)
 _HALO_PULSE_PERIOD = 1.5   # real seconds per pulse cycle, independent of dev speed
 
-_silhouette_cache = {}
-_halo_cache       = {}
+_halo_cache = {}
 
 
 def _make_silhouette(raw, color):
@@ -523,30 +681,51 @@ def _make_silhouette(raw, color):
     return sil
 
 
-def _get_halo(name, target_w, color=_HALO_COLOR):
-    """Solid blurred glow, drawn before its sprite — the sprite's own redraw
-    (at its current animation offset) covers the centre, leaving a ring."""
-    key = (name, target_w, color)
+def _get_halo(name, target_h, color=_HALO_COLOR):
+    """Solid glow drawn before its sprite — the sprite's own redraw (at its
+    current animation offset) covers the centre, leaving a ring. Built by
+    growing the on-screen-size silhouette a fixed _HALO_RADIUS px in every
+    direction (stamping it around a circle), so the rim is equally thick on
+    every sprite and hugs thin parts instead of scaling away from them."""
+    key = (name, target_h, color)
     surf = _halo_cache.get(key)
     if surf is None:
-        raw = _load_sprite_raw(name)
-        sil = _silhouette_cache.get((name, color))
-        if sil is None:
-            sil = _make_silhouette(raw, color)
-            _silhouette_cache[(name, color)] = sil
+        sil = _make_silhouette(_get_sprite_scaled(name, target_h), color)
+        pad = _HALO_RADIUS + 2
+        w, h = sil.get_width() + 2 * pad, sil.get_height() + 2 * pad
+        grown = pygame.Surface((w, h), pygame.SRCALPHA)
+        steps = max(12, _HALO_RADIUS * 4)
+        for k in range(steps):
+            a = 2 * math.pi * k / steps
+            grown.blit(sil, (pad + round(_HALO_RADIUS * math.cos(a)),
+                             pad + round(_HALO_RADIUS * math.sin(a))))
+        grown.blit(sil, (pad, pad))
 
-        halo_w = max(1, round(target_w * _HALO_SCALE))
-        halo_h = max(1, round(raw.get_height() * (halo_w / raw.get_width())))
-        scaled = pygame.transform.smoothscale(sil, (halo_w, halo_h))
-
-        small_w = max(1, halo_w // _HALO_BLUR_DIV)
-        small_h = max(1, halo_h // _HALO_BLUR_DIV)
-        blurred = pygame.transform.smoothscale(
-            pygame.transform.smoothscale(scaled, (small_w, small_h)), (halo_w, halo_h))
-
-        surf = blurred
+        small = (max(1, w // _HALO_BLUR_DIV), max(1, h // _HALO_BLUR_DIV))
+        surf = pygame.transform.smoothscale(
+            pygame.transform.smoothscale(grown, small), (w, h))
         _halo_cache[key] = surf
     return surf
+
+
+# Click areas follow the halo's shape — the sprite plus a few px of slack, so
+# thin parts (tentacles, tails) and small sprites stay easy to hit, and what
+# glows is exactly what's clickable.
+_HIT_ALPHA = 40   # halo alpha that still counts as a hit (lower = more slack)
+
+_hit_mask_cache = {}
+
+
+def sprite_hit(name, screen_w, screen_h, x, y):
+    cx, cy, _, target_h = _sprite_geom(name, screen_w, screen_h)
+    halo = _get_halo(name, target_h)
+    mask = _hit_mask_cache.get((name, target_h))
+    if mask is None:
+        mask = _hit_mask_cache[(name, target_h)] = pygame.mask.from_surface(halo, _HIT_ALPHA)
+    lx = x - (cx - halo.get_width() // 2)
+    ly = y - (cy - halo.get_height() // 2)
+    w, h = mask.get_size()
+    return 0 <= lx < w and 0 <= ly < h and bool(mask.get_at((lx, ly)))
 
 
 def halo_pulse(anim_time):
@@ -554,44 +733,111 @@ def halo_pulse(anim_time):
 
 
 def draw_halo(surface, name, screen_w, screen_h, pulse):
-    cx, cy, target_w, _ = _sprite_geom(name, screen_w, screen_h)
-    halo = _get_halo(name, target_w).copy()
+    cx, cy, _, target_h = _sprite_geom(name, screen_w, screen_h)
+    halo = _get_halo(name, target_h).copy()
     halo.set_alpha(int(110 + 90 * pulse))
     surface.blit(halo, (cx - halo.get_width() // 2, cy - halo.get_height() // 2))
 
 
 # ------------------------------------------------------------------
-# Bond bar — small segmented bar under a present creature's sprite,
-# replacing the old sidebar bond-status list.
+# Bond sprig — pixel-art stem with one leaf per bond level (buds for the
+# rest). Shown top-right in the message box whenever a creature is the
+# speaker, and in the Grove Journal. Drawn on a native grid, each art pixel
+# a _SPRIG_PX square, so it matches the sprites' chunkiness.
 
-_BOND_SEG_W = 13
-_BOND_SEG_H = 5
-_BOND_GAP   = 1
-_BOND_MAX   = 3
+_SPRIG_PX = 2
+_SPRIG_PAL = {"O": (28, 46, 22), "D": (52, 104, 38), "G": (92, 164, 62), "L": (168, 222, 118),
+              "S": (104, 112, 62), "s": (58, 64, 34), "B": (100, 122, 66), "b": (146, 166, 96)}
+_SPRIG_PAL_BRIGHT = dict(_SPRIG_PAL, D=(95, 160, 70), G=(150, 215, 100), L=(230, 250, 180))
 
-# Some sprites have a lot of transparent "air" below their visual mass
-# (e.g. flumph's tapering tentacle tips), which pads out their bounding-box
-# bottom — pull the bar up closer to the body for those.
-_BOND_BAR_GAP = 4
-_BOND_BAR_GAP_OVERRIDE = {
-    "blink_dog": -4,
-    "flumph":    -16,
-}
+# leaf growing up-right from its base at the bottom-left
+_SPRIG_LEAF = [
+    ".....OOOO",
+    "...OOGGLO",
+    "..OGGGLGO",
+    ".OGGGLGDO",
+    ".OGGLGDO.",
+    "OGLGDDO..",
+    "OLOOOO...",
+]
+_SPRIG_LEAF_SMALL = [   # mid-growth frame for the level-up animation
+    "...OOO",
+    ".OOGLO",
+    "OGGLGO",
+    "OGLGDO",
+    "OLOOO.",
+]
+_SPRIG_BUD = [
+    ".O..",
+    "ObO.",
+    "OBBO",
+    "OBBO",
+    ".OO.",
+]
+_SPRIG_W, _SPRIG_H = 46, 11
+_SPRIG_STEM_Y = [9] * 16 + [8] * 15 + [7] * 15   # gentle rise left -> right
+_SPRIG_SLOTS  = (6, 20, 34)                      # leaf attach x on the stem
+
+# Level-up: the newest leaf grows bud -> small leaf -> leaf, then flashes bright
+_SPRIG_BUD_T   = 0.12   # seconds as a bud
+_SPRIG_SMALL_T = 0.30   # seconds until full size
+_SPRIG_FLASH_T = 0.50   # bright flash fading out after reaching full size
+
+_sprig_cache = {}
 
 
-def draw_bond_bar(surface, anchor_x, top_y, bond_level, flashing=False):
-    total_w = _BOND_MAX * _BOND_SEG_W + (_BOND_MAX - 1) * _BOND_GAP
-    x = anchor_x - total_w // 2
+def _sprig_put(surf, rows, ox, oy, pal):
+    for y, row in enumerate(rows):
+        for x, ch in enumerate(row):
+            if ch != "." and 0 <= ox + x < _SPRIG_W and 0 <= oy + y < _SPRIG_H:
+                surf.fill(pal[ch], ((ox + x) * _SPRIG_PX, (oy + y) * _SPRIG_PX, _SPRIG_PX, _SPRIG_PX))
 
-    fill_col   = (255, 240, 180) if flashing else (210, 180, 90)
-    empty_col  = (40, 40, 40)
-    border_col = (15, 15, 15)
 
-    for i in range(_BOND_MAX):
-        sx = x + i * (_BOND_SEG_W + _BOND_GAP)
-        col = fill_col if i < bond_level else empty_col
-        pygame.draw.rect(surface, col, (sx, top_y, _BOND_SEG_W, _BOND_SEG_H))
-        pygame.draw.rect(surface, border_col, (sx, top_y, _BOND_SEG_W, _BOND_SEG_H), 1)
+def _build_sprig(level, grow_stage=None):
+    """grow_stage: None, "bud", "small", "full" or "bright" for the newest leaf."""
+    surf = pygame.Surface((_SPRIG_W * _SPRIG_PX, _SPRIG_H * _SPRIG_PX), pygame.SRCALPHA)
+    for x in range(1, _SPRIG_W - 1):
+        y = _SPRIG_STEM_Y[x]
+        _sprig_put(surf, ["S"], x, y, _SPRIG_PAL)
+        _sprig_put(surf, ["s"], x, y + 1, _SPRIG_PAL)
+    for i, ax in enumerate(_SPRIG_SLOTS):
+        sy = _SPRIG_STEM_Y[ax]
+        stage = "full" if i < level else "bud"
+        if grow_stage and i == level - 1:
+            stage = grow_stage
+        if stage == "bud":
+            _sprig_put(surf, _SPRIG_BUD, ax, sy - 4, _SPRIG_PAL)
+        elif stage == "small":
+            _sprig_put(surf, _SPRIG_LEAF_SMALL, ax, sy - 4, _SPRIG_PAL)
+        else:
+            pal = _SPRIG_PAL_BRIGHT if stage == "bright" else _SPRIG_PAL
+            _sprig_put(surf, _SPRIG_LEAF, ax, sy - 6, pal)
+    return surf
+
+
+def _get_sprig(level, grow_stage=None):
+    key = (level, grow_stage)
+    surf = _sprig_cache.get(key)
+    if surf is None:
+        surf = _sprig_cache[key] = _build_sprig(level, grow_stage)
+    return surf
+
+
+def draw_bond_sprig(surface, right_x, center_y, level, grow_t=None):
+    """grow_t: seconds since this creature levelled up (None = no animation)."""
+    w, h = _SPRIG_W * _SPRIG_PX, _SPRIG_H * _SPRIG_PX
+    pos = (right_x - w, center_y - h // 2)
+    if grow_t is None or level < 1 or grow_t >= _SPRIG_SMALL_T + _SPRIG_FLASH_T:
+        surface.blit(_get_sprig(level), pos)
+    elif grow_t < _SPRIG_BUD_T:
+        surface.blit(_get_sprig(level, "bud"), pos)
+    elif grow_t < _SPRIG_SMALL_T:
+        surface.blit(_get_sprig(level, "small"), pos)
+    else:
+        surface.blit(_get_sprig(level), pos)
+        bright = _get_sprig(level, "bright").copy()
+        bright.set_alpha(round(255 * (1 - (grow_t - _SPRIG_SMALL_T) / _SPRIG_FLASH_T)))
+        surface.blit(bright, pos)
 
 
 # ------------------------------------------------------------------
@@ -636,7 +882,7 @@ def draw_dialogue(surface, font, text, anchor_x, anchor_y):
 
 
 # ------------------------------------------------------------------
-# Areas restoration panel
+# Grove restoration rows (the Grove Journal's Grove tab)
 
 _AREA_DISPLAY_NAMES = {
     "heartstone":       "The Heartstone",
@@ -646,43 +892,18 @@ _AREA_DISPLAY_NAMES = {
     "oldwood":          "The Oldwood",
 }
 
-_AP_ROW_H   = 50
-_AP_PAD     = 14
-_AP_W       = 410
-_AP_TITLE_H = 36
-_AP_HINT_H  = 24
+_AP_ROW_H = 50
 
 
-def draw_areas_panel(surface, font, font_sm, areas, resources, screen_w, screen_h):
-    """
-    Draw the grove restoration panel.
-    Returns {area_name: rect} for clickable (next-unlockable) rows.
-    """
-    n       = len(areas.ALL)
-    panel_h = _AP_TITLE_H + n * _AP_ROW_H + _AP_HINT_H + _AP_PAD * 2
-    px      = (screen_w - _AP_W) // 2
-    py      = (screen_h - panel_h) // 2
-
-    # Dim scene behind panel
-    dim = pygame.Surface((screen_w, screen_h), pygame.SRCALPHA)
-    dim.fill((0, 0, 0, 150))
-    surface.blit(dim, (0, 0))
-
-    # Panel background
-    bg = pygame.Surface((_AP_W, panel_h), pygame.SRCALPHA)
-    bg.fill((12, 20, 12, 235))
-    surface.blit(bg, (px, py))
-    pygame.draw.rect(surface, (70, 100, 60), (px, py, _AP_W, panel_h), 1)
-
-    title = font.render("Grove Restoration", True, (190, 220, 165))
-    surface.blit(title, (px + _AP_PAD, py + _AP_PAD))
-
+def _draw_area_rows(surface, font, font_sm, areas, resources, x, y, w):
+    """Grove restoration rows. Returns {area_name: rect} for clickable
+    (next-unlockable) rows."""
     next_name = areas.next_to_unlock()
     clickable = {}
 
     for i, name in enumerate(areas.ALL):
-        ry        = py + _AP_PAD + _AP_TITLE_H + i * _AP_ROW_H
-        row_rect  = pygame.Rect(px + _AP_PAD, ry, _AP_W - _AP_PAD * 2, _AP_ROW_H - 6)
+        ry        = y + i * _AP_ROW_H
+        row_rect  = pygame.Rect(x, ry, w, _AP_ROW_H - 6)
         unlocked  = areas.is_unlocked(name)
         is_next   = name == next_name
         affordable = is_next and areas.can_afford(name, resources)
@@ -724,11 +945,86 @@ def draw_areas_panel(surface, font, font_sm, areas, resources, screen_w, screen_
                 ht = font_sm.render("click to restore", True, (90, 140, 70))
                 surface.blit(ht, (row_rect.x + 8, ry + 28))
 
-    # Close hint
-    ch = font_sm.render("[R]  close", True, (62, 82, 55))
-    surface.blit(ch, (px + (_AP_W - ch.get_width()) // 2, py + panel_h - _AP_HINT_H))
-
     return clickable
+
+
+# ------------------------------------------------------------------
+# Grove Journal — two tabs: Creatures (bond sprigs) and Grove (restoration)
+
+_JP_W       = 410
+_JP_TAB_H   = 36
+_JP_PAD     = 14
+_JP_HINT_H  = 24
+_JP_CREATURE_ROW_H = 30
+
+
+def draw_journal_panel(surface, font, font_sm, active_tab, creatures, areas,
+                       resources, screen_w, screen_h):
+    """
+    Returns (panel rect — clicks outside it close the journal,
+             {"creatures": rect, "grove": rect} tab targets,
+             {area_name: rect} restorable rows — Grove tab only).
+    """
+    roster = creatures.all() if creatures else []
+    body_h = max(len(roster) * _JP_CREATURE_ROW_H, len(areas.ALL) * _AP_ROW_H)
+    panel_h = _JP_TAB_H + _JP_PAD + body_h + _JP_HINT_H + _JP_PAD
+    px = (screen_w - _JP_W) // 2
+    py = (screen_h - panel_h) // 2
+
+    dim = pygame.Surface((screen_w, screen_h), pygame.SRCALPHA)
+    dim.fill((0, 0, 0, 150))
+    surface.blit(dim, (0, 0))
+
+    bg = pygame.Surface((_JP_W, panel_h), pygame.SRCALPHA)
+    bg.fill((12, 20, 12, 235))
+    surface.blit(bg, (px, py))
+    pygame.draw.rect(surface, (70, 100, 60), (px, py, _JP_W, panel_h), 1)
+
+    # Tabs
+    tab_w = _JP_W // 2
+    tabs  = {}
+    for i, (key, label) in enumerate((("creatures", "Creatures"), ("grove", "Grove"))):
+        rect = pygame.Rect(px + i * tab_w, py, tab_w, _JP_TAB_H)
+        tabs[key] = rect
+        active = key == active_tab
+        if active:
+            pygame.draw.rect(surface, (25, 45, 20), rect)
+        col = (200, 220, 180) if active else (100, 120, 90)
+        t = font.render(label, True, col)
+        surface.blit(t, (rect.centerx - t.get_width() // 2, rect.centery - t.get_height() // 2))
+    pygame.draw.line(surface, (70, 100, 60), (px, py + _JP_TAB_H), (px + _JP_W, py + _JP_TAB_H))
+    pygame.draw.line(surface, (70, 100, 60), (px + tab_w, py), (px + tab_w, py + _JP_TAB_H))
+
+    body_y    = py + _JP_TAB_H + _JP_PAD
+    clickable = {}
+    if active_tab == "grove":
+        clickable = _draw_area_rows(surface, font, font_sm, areas, resources,
+                                    px + _JP_PAD, body_y, _JP_W - _JP_PAD * 2)
+    else:
+        for i, c in enumerate(roster):
+            ry = body_y + i * _JP_CREATURE_ROW_H
+            cy = ry + _JP_CREATURE_ROW_H // 2
+            nx = px + _JP_PAD + 6
+            # Where it lives — for creatures yet to arrive, only once their
+            # area is restored (a hint of who's coming, not a spoiler)
+            home = _AREA_DISPLAY_NAMES.get(c.area, c.area.replace("_", " ").title())
+            home = home.removeprefix("The ")
+            if c.is_present:
+                nm = font_sm.render(c.name.replace("_", " ").title(), True, (200, 220, 180))
+                draw_bond_sprig(surface, px + _JP_W - _JP_PAD, cy, c.bond_level)
+            else:
+                nm = font_sm.render("???", True, (90, 100, 85))
+                na = font_sm.render("not yet arrived", True, (70, 80, 65))
+                surface.blit(na, (px + _JP_W - _JP_PAD - na.get_width(), cy - na.get_height() // 2))
+            surface.blit(nm, (nx, cy - nm.get_height() // 2))
+            if c.is_present or areas.is_unlocked(c.area):
+                ar = font_sm.render(f" · {home}", True, (105, 125, 95))
+                surface.blit(ar, (nx + nm.get_width(), cy - ar.get_height() // 2))
+
+    ch = font_sm.render("[J] creatures   [R] grove   [Esc] close", True, (62, 82, 55))
+    surface.blit(ch, (px + (_JP_W - ch.get_width()) // 2, py + panel_h - _JP_HINT_H))
+
+    return pygame.Rect(px, py, _JP_W, panel_h), tabs, clickable
 
 
 # ------------------------------------------------------------------
@@ -744,7 +1040,8 @@ _HELP_CONTROLS = [
     ("Click", "Interact with a creature, the statue, or the druid"),
     ("Enter", "Advance or dismiss dialogue"),
     ("S",     "Save"),
-    ("R",     "Open/close the grove restoration panel"),
+    ("J",     "Grove Journal: your creatures' bond"),
+    ("R",     "Grove Journal: restore areas of the grove"),
     ("H",     "Open/close this help menu"),
     ("Esc",   "Close a menu, or quit"),
 ]
@@ -753,7 +1050,8 @@ _HELP_CONTROLS = [
 def draw_help_panel(surface, font, font_sm, active_tab, config, screen_w, screen_h):
     """
     Two-tab reference panel (Controls / Feeding).
-    Returns {"controls": rect, "feeding": rect} tab click targets.
+    Returns (panel rect — clicks outside it close the menu,
+             {"controls": rect, "feeding": rect} tab click targets).
     """
     if active_tab == "feeding":
         rows = [(name.replace("_", " ").title(), cfg.get("feeding", {}))
@@ -818,7 +1116,7 @@ def draw_help_panel(surface, font, font_sm, active_tab, config, screen_w, screen
     ch = font_sm.render("[H]  close", True, (62, 82, 55))
     surface.blit(ch, (px + (_HP_W - ch.get_width()) // 2, py + panel_h - _HP_HINT_H))
 
-    return tabs
+    return pygame.Rect(px, py, _HP_W, panel_h), tabs
 
 
 # ------------------------------------------------------------------
@@ -893,6 +1191,7 @@ def draw_action_menu(surface, font, options, anchor_x, anchor_y,
 
 _TB_H      = 100
 _TB_PAD    = 10
+_TB_SPRIG_TOP = 4   # bond sprig's top edge, below the box's top border
 _TB_MARGIN = 20
 
 # Rune discs (continue / dismiss) — a small hand-carved stone disc per state,
@@ -1069,7 +1368,7 @@ def _draw_dismiss_glyph(surface, cx, cy, anim_time):
 
 def draw_text_box(surface, font, font_sm, speaker, text, options,
                   hover_idx, screen_w, screen_h, right_inset=0,
-                  has_more=False, anim_time=0.0):
+                  has_more=False, anim_time=0.0, bond_level=None, bond_grow_t=None):
     """
     Fixed bottom panel. Two modes:
       options mode — options is a non-empty list of (label, detail, available);
@@ -1081,6 +1380,9 @@ def draw_text_box(surface, font, font_sm, speaker, text, options,
     right_inset: extra space reserved on the right (e.g. for the resource
     panel sharing the same row) — shrinks the box width without moving its
     left edge.
+
+    bond_level: when a creature is the speaker, its bond sprig is drawn
+    top-right; bond_grow_t (seconds since it levelled up) animates the new leaf.
     """
     bx = _TB_MARGIN
     by = screen_h - _TB_H - _TB_MARGIN
@@ -1097,6 +1399,13 @@ def draw_text_box(surface, font, font_sm, speaker, text, options,
         sp = font_sm.render(speaker, True, (130, 180, 110))
         surface.blit(sp, (bx + _TB_PAD, by + _TB_PAD))
         label_h = font_sm.get_linesize() + 4
+
+    if bond_level is not None:
+        # Pinned near the top border rather than centred on the name line, so
+        # it clears the first option row's hover highlight.
+        sprig_h = _SPRIG_H * _SPRIG_PX
+        draw_bond_sprig(surface, bx + bw - _TB_PAD, by + _TB_SPRIG_TOP + sprig_h // 2,
+                        bond_level, bond_grow_t)
 
     content_y = by + _TB_PAD + label_h
     item_rects = []
@@ -1212,6 +1521,35 @@ def draw_motes(surface, period, time_of_day, screen_w, screen_h):
 # ------------------------------------------------------------------
 # Master scene draw
 
+_CREATURE_ORDER = ("stirge", "blink_dog", "owlbear", "pseudodragon",
+                   "flumph", "moss_wisp", "pixie", "displacer_beast")
+
+
+def _draw_creature(surface, name, c, period, screen_w, screen_h, anim_time):
+    """Sprite for one present creature."""
+    if name == "stirge":
+        draw_stirge(surface, screen_w, screen_h, period, c.is_present, anim_time)
+    elif name == "blink_dog":
+        draw_blink_dog(surface, screen_w, screen_h, period,
+                       c.is_present, anim_time)
+    elif name == "owlbear":
+        draw_owlbear(surface, screen_w, screen_h, period, c.is_present, anim_time)
+    elif name == "pseudodragon":
+        draw_pseudodragon(surface, screen_w, screen_h, period, c.is_present, anim_time)
+    elif name == "flumph":
+        draw_flumph(surface, screen_w, screen_h, period,
+                    c.is_present, anim_time)
+    elif name == "moss_wisp":
+        draw_moss_wisp(surface, screen_w, screen_h, period,
+                       c.is_present, anim_time)
+    elif name == "pixie":
+        draw_pixie(surface, screen_w, screen_h, period,
+                   c.is_present, anim_time)
+    elif name == "displacer_beast":
+        draw_displacer_beast(surface, screen_w, screen_h, period,
+                             c.is_present, anim_time)
+
+
 def draw_scene(surface, period, time_of_day, screen_w, screen_h,
                creatures=None, events=None, areas=None,
                statue_ready=False, druid_ready=False, anim_time=0.0,
@@ -1221,6 +1559,13 @@ def draw_scene(surface, period, time_of_day, screen_w, screen_h,
     if blend is None:
         blend = (period, period, 0.0)
     draw_background(surface, blend, screen_w, screen_h, areas)
+
+    strength = shadow_strength(blend)
+    for name in _SHADOWS:
+        c = creatures.get(name) if creatures else None
+        if name in ("statue", "druid") or (c and c.is_present):
+            s = strength * blink_dog_alpha(anim_time) / 255 if name == "blink_dog" else strength
+            draw_shadow(surface, name, screen_w, screen_h, s)
 
     pulse = halo_pulse(anim_time)
 
@@ -1235,48 +1580,23 @@ def draw_scene(surface, period, time_of_day, screen_w, screen_h,
     draw_druid(surface, period, screen_w, screen_h, anim_time)
 
     if creatures:
-        for name in ("stirge", "blink_dog", "owlbear", "pseudodragon",
-                     "flumph", "moss_wisp", "pixie", "displacer_beast"):
+        for name in _CREATURE_ORDER:
             c = creatures.get(name)
             if not c or not c.is_present:
                 continue
-
             if c.can_interact or c.has_event:
                 draw_halo(surface, name, screen_w, screen_h, pulse)
-
-            if name == "stirge":
-                draw_stirge(surface, screen_w, screen_h, period, c.is_present, anim_time)
-                rect = stirge_rect(screen_w, screen_h)
-            elif name == "blink_dog":
-                draw_blink_dog(surface, screen_w, screen_h, period,
-                               c.is_present, anim_time)
-                rect = blink_dog_rect(screen_w, screen_h)
-            elif name == "owlbear":
-                draw_owlbear(surface, screen_w, screen_h, period, c.is_present, anim_time)
-                rect = owlbear_rect(screen_w, screen_h)
-            elif name == "pseudodragon":
-                draw_pseudodragon(surface, screen_w, screen_h, period, c.is_present, anim_time)
-                rect = pseudodragon_rect(screen_w, screen_h)
-            elif name == "flumph":
-                draw_flumph(surface, screen_w, screen_h, period,
-                            c.is_present, anim_time)
-                rect = flumph_rect(screen_w, screen_h)
-            elif name == "moss_wisp":
-                draw_moss_wisp(surface, screen_w, screen_h, period,
-                               c.is_present, anim_time)
-                rect = moss_wisp_rect(screen_w, screen_h)
-            elif name == "pixie":
-                draw_pixie(surface, screen_w, screen_h, period,
-                           c.is_present, anim_time)
-                rect = pixie_rect(screen_w, screen_h)
-            elif name == "displacer_beast":
-                draw_displacer_beast(surface, screen_w, screen_h, period,
-                                     c.is_present, anim_time)
-                rect = displacer_beast_rect(screen_w, screen_h)
-
-            gap = _BOND_BAR_GAP_OVERRIDE.get(name, _BOND_BAR_GAP)
-            draw_bond_bar(surface, rect.centerx, rect.bottom + gap,
-                          c.bond_level, flashing=c.bond_flash_ttl > 0)
+            if name not in _SELF_LIT:
+                _draw_creature(surface, name, c, period, screen_w, screen_h, anim_time)
 
     draw_period_tint(surface, blend, screen_w, screen_h)
+
+    # Light sources go on top of the tint so night doesn't dim them.
+    draw_light(surface, "statue", screen_w, screen_h)
+    if creatures:
+        for name in _SELF_LIT:
+            c = creatures.get(name)
+            if c and c.is_present:
+                _draw_creature(surface, name, c, period, screen_w, screen_h, anim_time)
+
     draw_motes(surface, period, time_of_day, screen_w, screen_h)

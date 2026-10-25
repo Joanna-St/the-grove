@@ -16,16 +16,8 @@ from game import dialogue as dlg
 from game.renderer import (
     draw_scene,
     draw_text_box, draw_center_flash, text_box_item_rects,
-    draw_areas_panel, draw_help_panel,
-    stirge_rect, stirge_pos,
-    blink_dog_rect, blink_dog_pos,
-    owlbear_rect, owlbear_pos,
-    pseudodragon_rect, pseudodragon_pos,
-    flumph_rect, flumph_pos,
-    moss_wisp_rect, moss_wisp_pos,
-    pixie_rect, pixie_pos,
-    displacer_beast_rect, displacer_beast_pos,
-    statue_rect, druid_rect,
+    draw_journal_panel, draw_help_panel,
+    sprite_hit,
 )
 
 CONFIG_PATH = "config.json"
@@ -289,10 +281,14 @@ def main():
 
     text_box          = None   # {"mode":"options"|"text","speaker":str,"text":str,
                                #  "creature":c|None,"pool":...,"feed_pool":...,"ttl":float,"hover":int}
-    show_areas_panel  = False
-    areas_clickable   = {}     # {area_name: rect}, rebuilt each frame when panel is open
+    show_journal      = False
+    journal_tab       = "creatures"
+    journal_rect      = None   # panel rect — a click outside it closes the journal
+    journal_tabs      = {}     # {"creatures"|"grove": rect}, rebuilt each frame when open
+    areas_clickable   = {}     # {area_name: rect}, rebuilt each frame on the Grove tab
     show_help_panel   = False
     help_tab          = "controls"
+    help_rect         = None   # panel rect — a click outside it closes the help menu
     help_clickable    = {}     # {"controls"|"feeding": rect}, rebuilt each frame when panel is open
 
     autosave_interval   = config["autosave_interval_seconds"]
@@ -302,38 +298,30 @@ def main():
 
     # Data-driven creature registry — drives click detection and dialogue routing
     _CREATURE_REGISTRY = [
-        {"name": "stirge",          "pool": dlg.STIRGE,          "feed_pool": dlg.STIRGE_FEED,
-         "rect_fn": stirge_rect,          "pos_fn": stirge_pos},
-        {"name": "blink_dog",       "pool": dlg.BLINK_DOG,       "feed_pool": dlg.BLINK_DOG_FEED,
-         "rect_fn": blink_dog_rect,       "pos_fn": blink_dog_pos},
-        {"name": "owlbear",         "pool": dlg.OWLBEAR,         "feed_pool": dlg.OWLBEAR_FEED,
-         "rect_fn": owlbear_rect,         "pos_fn": owlbear_pos},
-        {"name": "pseudodragon",    "pool": dlg.PSEUDODRAGON,    "feed_pool": dlg.PSEUDODRAGON_FEED,
-         "rect_fn": pseudodragon_rect,    "pos_fn": pseudodragon_pos},
-        {"name": "flumph",          "pool": dlg.FLUMPH,          "feed_pool": dlg.FLUMPH_FEED,
-         "rect_fn": flumph_rect,          "pos_fn": flumph_pos},
-        {"name": "moss_wisp",       "pool": dlg.MOSS_WISP,       "feed_pool": dlg.MOSS_WISP_FEED,
-         "rect_fn": moss_wisp_rect,       "pos_fn": moss_wisp_pos},
-        {"name": "pixie",           "pool": dlg.PIXIE,           "feed_pool": dlg.PIXIE_FEED,
-         "rect_fn": pixie_rect,           "pos_fn": pixie_pos},
-        {"name": "displacer_beast", "pool": dlg.DISPLACER_BEAST, "feed_pool": dlg.DISPLACER_BEAST_FEED,
-         "rect_fn": displacer_beast_rect, "pos_fn": displacer_beast_pos},
+        {"name": "stirge",          "pool": dlg.STIRGE,          "feed_pool": dlg.STIRGE_FEED},
+        {"name": "blink_dog",       "pool": dlg.BLINK_DOG,       "feed_pool": dlg.BLINK_DOG_FEED},
+        {"name": "owlbear",         "pool": dlg.OWLBEAR,         "feed_pool": dlg.OWLBEAR_FEED},
+        {"name": "pseudodragon",    "pool": dlg.PSEUDODRAGON,    "feed_pool": dlg.PSEUDODRAGON_FEED},
+        {"name": "flumph",          "pool": dlg.FLUMPH,          "feed_pool": dlg.FLUMPH_FEED},
+        {"name": "moss_wisp",       "pool": dlg.MOSS_WISP,       "feed_pool": dlg.MOSS_WISP_FEED},
+        {"name": "pixie",           "pool": dlg.PIXIE,           "feed_pool": dlg.PIXIE_FEED},
+        {"name": "displacer_beast", "pool": dlg.DISPLACER_BEAST, "feed_pool": dlg.DISPLACER_BEAST_FEED},
     ]
-
-    st_rect = statue_rect(game_w, game_h)
-    dr_rect = druid_rect(game_w, game_h)
 
     def _grove_text(text):
         return {"mode": "text", "speaker": "The Grove", "text": text,
                 "creature": None, "pool": None, "feed_pool": None,
                 "ttl": None, "hover": -1, "boxes": None, "box_idx": 0, "is_visitor": False}
 
-    def _creature_text(creature):
+    def _creature_text(creature, levelled=False):
+        # levelled: the bond sprig's new leaf grows in as this box opens
         return {"mode": "text",
                 "speaker": creature.name.replace("_", " ").title(),
                 "text": creature.dialogue_text,
                 "creature": None, "pool": None, "feed_pool": None,
-                "ttl": None, "hover": -1, "boxes": None, "box_idx": 0, "is_visitor": False}
+                "ttl": None, "hover": -1, "boxes": None, "box_idx": 0, "is_visitor": False,
+                "bond": creature,
+                "grow_at": pygame.time.get_ticks() / 1000.0 if levelled else None}
 
     def _event_text(creature, text):
         boxes = text if isinstance(text, list) else None
@@ -342,7 +330,8 @@ def main():
                 "speaker": creature.name.replace("_", " ").title(),
                 "text": first,
                 "creature": None, "pool": None, "feed_pool": None,
-                "ttl": None, "hover": -1, "boxes": boxes, "box_idx": 0, "is_visitor": False}
+                "ttl": None, "hover": -1, "boxes": boxes, "box_idx": 0, "is_visitor": False,
+                "bond": creature, "grow_at": None}
 
     def _visitor_text(text, speaker, boxes=None):
         return {"mode": "text", "speaker": speaker, "text": text,
@@ -372,8 +361,8 @@ def main():
 
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    if show_areas_panel:
-                        show_areas_panel = False
+                    if show_journal:
+                        show_journal = False
                     elif show_help_panel:
                         show_help_panel = False
                     elif text_box and text_box["mode"] == "options":
@@ -394,14 +383,19 @@ def main():
                 elif event.key == pygame.K_s:
                     save_load.save_game(time_sys, resources, areas, creatures, events, player_name)
                     center_flash_text, center_flash_ttl = "Saved.", 2.5
-                elif event.key == pygame.K_r:
-                    show_areas_panel = not show_areas_panel
-                    if show_areas_panel:
+                elif event.key in (pygame.K_j, pygame.K_r):
+                    # J -> Creatures tab, R -> Grove tab; same key again closes,
+                    # the other key switches tabs
+                    tab = "creatures" if event.key == pygame.K_j else "grove"
+                    if show_journal and journal_tab == tab:
+                        show_journal = False
+                    else:
+                        show_journal, journal_tab = True, tab
                         show_help_panel = False
                 elif event.key == pygame.K_h:
                     show_help_panel = not show_help_panel
                     if show_help_panel:
-                        show_areas_panel = False
+                        show_journal = False
                 elif event.key == pygame.K_d:
                     time_sys.toggle_dev_speed()
                 elif event.key == pygame.K_f:
@@ -430,12 +424,20 @@ def main():
                 gx, gy = mx - blit_x, my - blit_y
 
                 if show_help_panel:
+                    if help_rect and not help_rect.collidepoint(gx, gy):
+                        show_help_panel = False
                     for tab, rect in help_clickable.items():
                         if rect.collidepoint(gx, gy):
                             help_tab = tab
                             break
 
-                elif show_areas_panel:
+                elif show_journal:
+                    if journal_rect and not journal_rect.collidepoint(gx, gy):
+                        show_journal = False
+                    for tab, rect in journal_tabs.items():
+                        if rect.collidepoint(gx, gy):
+                            journal_tab = tab
+                            break
                     for area_name, rect in areas_clickable.items():
                         if rect.collidepoint(gx, gy):
                             if areas.can_afford(area_name, resources):
@@ -444,8 +446,8 @@ def main():
                                 areas.unlock(area_name, time_sys.game_seconds)
                                 msg      = dlg.AREA_RESTORED.get(area_name,
                                     f"The {area_name.replace('_',' ').title()} has been restored.")
-                                text_box         = _grove_text(msg)
-                                show_areas_panel = False
+                                text_box     = _grove_text(msg)
+                                show_journal = False
                             else:
                                 center_flash_text = "Not enough resources."
                                 center_flash_ttl  = 3.0
@@ -466,13 +468,13 @@ def main():
                     elif kind == "creature":
                         creature = text_box["creature"]
                         if label == "Interact":
-                            creature.interact(text_box["pool"])
-                            text_box = _creature_text(creature)
+                            levelled = creature.interact(text_box["pool"])
+                            text_box = _creature_text(creature, levelled)
                         elif label == "Feed":
                             feed_cfg = config["creatures"].get(creature.name, {}).get("feeding", {})
                             resources.add("forage", -feed_cfg["forage_cost"])
-                            creature.feed(text_box["feed_pool"])
-                            text_box = _creature_text(creature)
+                            levelled = creature.feed(text_box["feed_pool"])
+                            text_box = _creature_text(creature, levelled)
                         elif label == "Event":
                             text = _apply_creature_event(creature, resources)
                             text_box = _event_text(creature, text)
@@ -514,7 +516,7 @@ def main():
                     clicked_creature = False
                     for entry in _CREATURE_REGISTRY:
                         c = creatures.get(entry["name"])
-                        if c and c.is_present and entry["rect_fn"](game_w, game_h).collidepoint(gx, gy):
+                        if c and c.is_present and sprite_hit(entry["name"], game_w, game_h, gx, gy):
                             text_box = {
                                 "mode":       "options",
                                 "speaker":    c.name.replace("_", " ").title(),
@@ -527,11 +529,13 @@ def main():
                                 "boxes":      None,
                                 "box_idx":    0,
                                 "is_visitor": False,
+                                "bond":       c,
+                                "grow_at":    None,
                             }
                             clicked_creature = True
                             break
 
-                    if not clicked_creature and st_rect.collidepoint(gx, gy):
+                    if not clicked_creature and sprite_hit("statue", game_w, game_h, gx, gy):
                         text_box = {
                             "mode": "options", "speaker": "The Grove", "text": "",
                             "creature": None, "kind": "statue", "pool": None,
@@ -539,11 +543,11 @@ def main():
                             "boxes": None, "box_idx": 0, "is_visitor": False,
                         }
 
-                    elif not clicked_creature and dr_rect.collidepoint(gx, gy):
-                        speaker = (events.visitor_display_name()
-                                   if events.visitor_pending_event else "The Grove")
+                    elif not clicked_creature and sprite_hit("druid", game_w, game_h, gx, gy):
+                        # Always "The Grove" (like the statue) — the visitor's name
+                        # labels their own boxes once Event is picked
                         text_box = {
-                            "mode": "options", "speaker": speaker, "text": "",
+                            "mode": "options", "speaker": "The Grove", "text": "",
                             "creature": None, "kind": "druid", "pool": None,
                             "feed_pool": None, "ttl": None, "hover": -1,
                             "boxes": None, "box_idx": 0, "is_visitor": False,
@@ -610,14 +614,16 @@ def main():
             badge_text = "DEV SPEED  [D]"
             render_dev_badge(game_surf, font_sm, game_w - font_sm.size(badge_text)[0] - 14, 36)
 
-        # Areas restoration panel
-        if show_areas_panel:
-            areas_clickable = draw_areas_panel(
-                game_surf, font, font_sm, areas, resources, game_w, game_h)
+        # Grove Journal (Creatures / Grove tabs)
+        if show_journal:
+            journal_rect, journal_tabs, areas_clickable = draw_journal_panel(
+                game_surf, font, font_sm, journal_tab, creatures, areas, resources, game_w, game_h)
+        else:
+            areas_clickable = {}
 
         # Help / info panel
         if show_help_panel:
-            help_clickable = draw_help_panel(
+            help_rect, help_clickable = draw_help_panel(
                 game_surf, font, font_sm, help_tab, config, game_w, game_h)
 
         # Bottom text box (creature options / dialogue / grove messages)
@@ -627,12 +633,17 @@ def main():
                     if text_box["mode"] == "options" else [])
             boxes = text_box.get("boxes")
             has_more = boxes is not None and text_box["box_idx"] < len(boxes) - 1
+            now       = pygame.time.get_ticks() / 1000.0
+            bond      = text_box.get("bond")
+            grow_at   = text_box.get("grow_at")
             draw_text_box(game_surf, font, font_sm,
                           text_box["speaker"], text_box["text"],
                           opts, text_box["hover"], game_w, game_h,
                           right_inset=text_box_right_inset,
                           has_more=has_more,
-                          anim_time=pygame.time.get_ticks() / 1000.0)
+                          anim_time=now,
+                          bond_level=bond.bond_level if bond else None,
+                          bond_grow_t=now - grow_at if grow_at is not None else None)
 
         # Centre flash (errors, save confirmation)
         if center_flash_ttl > 0:

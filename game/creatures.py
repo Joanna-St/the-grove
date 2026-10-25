@@ -170,6 +170,10 @@ class Creature:
     # Feeding
 
     @property
+    def area(self):
+        return self._area
+
+    @property
     def can_feed(self):
         return (self.is_present
                 and self.feeds_today < self._feeds_per_day
@@ -251,6 +255,9 @@ class Creatures:
 
     def get(self, name):
         return next((c for c in self._all if c.name == name), None)
+
+    def all(self):
+        return list(self._all)
 
     def present(self):
         return [c for c in self._all if c.is_present]
